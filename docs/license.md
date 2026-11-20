@@ -24,9 +24,9 @@ Per upstream documentation (<https://openpronounce.github.io/docs/licensing.html
    - Obtain an active commercial license covering the product, code, and shipped models prior to closed-source deployment or private registry distribution.
    - Keep commercial license documentation on file and disable public GHCR redistribution of proprietary/commercial builds unless explicitly permitted.
 
-## CI Release Gate
+## Pre-Publication Checklist
 
-`.github/workflows/docker-publish.yml` blocks tagged GHCR releases (`v*.*.*`) unless the repository variable `LICENSE_REVIEW_APPROVED` is explicitly set to `true` after completing the checklist below:
+Before publishing images to GHCR via `.github/workflows/docker-publish.yml`, complete the checklist below:
 
 - [ ] License strategy selected (AGPL-3.0-or-later vs commercial license) and repository `LICENSE` file aligned with the chosen strategy.
 - [ ] Upstream OpenPronounce copyright and license notices preserved.

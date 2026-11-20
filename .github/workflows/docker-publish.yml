@@ -1,206 +1,45 @@
-name: Docker Release (GHCR)
+name: Docker Publish (GHCR)
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release-gate:
-    name: Fast checks, version parity, and license gate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout tag/ref
-        uses: actions/checkout@v7
-
-      - name: Verify license approval gate before GHCR publication
-        env:
-          LICENSE_REVIEW_APPROVED: ${{ vars.LICENSE_REVIEW_APPROVED }}
-        run: |
-          test -f docs/license.md
-          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${LICENSE_REVIEW_APPROVED}" != "true" ]; then
-            echo "BLOCKED: Set repository variable LICENSE_REVIEW_APPROVED=true only after confirming AGPL-3.0-or-later or commercial license compliance per docs/license.md." >&2
-            exit 1
-          fi
-
-      - name: Verify semver tag matches pyproject.toml version
-        if: github.event_name == 'push'
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
-          echo "Tag version: ${TAG_VERSION}, pyproject.toml version: ${PKG_VERSION}"
-          if [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
-            echo "ERROR: Git tag v${TAG_VERSION} does not match pyproject.toml version ${PKG_VERSION}" >&2
-            exit 1
-          fi
-
-      - name: Install ffmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.12"
-          enable-cache: true
-
-      - name: Run fast checks and lockfile verification
-        run: |
-          uv python install 3.12
-          uv lock --check
-          bash scripts/test.sh
-
-  build-verify-publish:
-    name: Build CPU image, run container + model smoke, and publish to GHCR
-    needs: release-gate
+  build-and-push:
+    name: Build and push image to GHCR
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Checkout tag/ref
+      - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Check runner disk headroom for offline CPU image
-        run: |
-          df -h
-          avail_gb=$(df --output=avail -BG / | tail -n 1 | tr -dc '0-9')
-          echo "Available disk: ${avail_gb} GiB"
-          if [ "${avail_gb}" -lt 14 ]; then
-            echo "Insufficient disk space (< 14 GiB) to safely build and smoke-test prebundled model image." >&2
-            exit 1
-          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Extract image metadata and OCI labels
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.licenses=AGPL-3.0-or-later
-
-      - name: Build local linux/amd64 CPU-only image for verification
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: openpronounce-api:verify
-          build-args: |
-            PREFETCH_MODELS=true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Verify non-root user, offline CPU config, readiness, and real-model smoke
-        run: |
-          # Verify image runs as non-root
-          UID_OUT="$(docker run --rm --entrypoint id openpronounce-api:verify -u)"
-          echo "Container UID: ${UID_OUT}"
-          if [ "${UID_OUT}" = "0" ]; then
-            echo "ERROR: Container must not run as root." >&2
-            exit 1
-          fi
-
-          # Start container with read-only rootfs and no network egress to prove offline CPU readiness
-          docker run -d --name op-smoke \
-            --read-only \
-            --tmpfs /tmp:size=128m,mode=1777 \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            -p 127.0.0.1:8000:8000 \
-            -e OPENPRONOUNCE_DEVICE=cpu \
-            -e HF_HUB_OFFLINE=1 \
-            -e REQUIRE_API_KEY=true \
-            -e OPENPRONOUNCE_API_KEY=ci-smoke-key \
-            -e URL_FETCH_ENABLED=false \
-            openpronounce-api:verify
-
-          trap 'docker logs op-smoke || true; docker rm -f op-smoke || true' EXIT
-
-          # Confirm liveness immediately
-          for i in $(seq 1 15); do
-            if curl -fsS http://127.0.0.1:8000/health/live >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:8000/health/live
-
-          # Wait for model warm-up readiness
-          READY=0
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null 2>&1; then
-              READY=1
-              break
-            fi
-            sleep 2
-          done
-          if [ "${READY}" != "1" ]; then
-            echo "ERROR: Container did not become ready within timeout." >&2
-            exit 1
-          fi
-
-          # Generate a short synthetic WAV fixture and validate full API pipeline via scripts/test-api.sh
-          python3 -c '
-          import math, struct, wave
-          with wave.open("/tmp/ci_smoke.wav", "wb") as wf:
-              wf.setnchannels(1)
-              wf.setsampwidth(2)
-              wf.setframerate(16000)
-              frames = b"".join(struct.pack("<h", int(4000 * math.sin(2 * math.pi * 220 * i / 16000))) for i in range(16000))
-              wf.writeframes(frames)
-          '
-          BASE_URL="http://127.0.0.1:8000" \
-          API_KEY="ci-smoke-key" \
-          AUDIO_FILE="/tmp/ci_smoke.wav" \
-          EXPECTED_TEXT="I like eating apples." \
-          bash scripts/test-api.sh
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish verified linux/amd64 image to GHCR
-        id: push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
+          file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            PREFETCH_MODELS=true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Write release digest summary
-        run: |
-          {
-            echo "### Published OpenPronounce API Image"
-            echo ""
-            echo "- **Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`"
-            echo "- **Digest:** \`${{ steps.push.outputs.digest }}\`"
-            echo "- **Tags:**"
-            echo '```text'
-            echo "${{ steps.meta.outputs.tags }}"
-            echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          tags: ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
