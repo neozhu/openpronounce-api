@@ -10,6 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     OPENPRONOUNCE_DEVICE=cpu \
     HF_HOME=/opt/models/huggingface \
+    NUMBA_CACHE_DIR=/tmp/numba-cache \
     PATH="/app/.venv/bin:${PATH}"
 
 RUN apt-get update \
