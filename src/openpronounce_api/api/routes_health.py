@@ -1,9 +1,11 @@
-"""Liveness, readiness, and version endpoints."""
+"""Practice page and service status endpoints."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from openpronounce_api.core.config import Settings
 from openpronounce_api.core.errors import AppError, ErrorCode
@@ -17,6 +19,12 @@ from openpronounce_api.schemas.responses import (
 from openpronounce_api.services.pronunciation import PronunciationService
 
 router = APIRouter(tags=["Operations"])
+PRACTICE_PAGE = Path(__file__).resolve().parents[1] / "practice.html"
+
+
+@router.get("/practice", include_in_schema=False)
+async def practice() -> FileResponse:
+    return FileResponse(PRACTICE_PAGE, media_type="text/html")
 
 
 @router.get("/", include_in_schema=False)

@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="zh-CN" data-type="software">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="用麦克风练习英语单词和短句，查看发音、流利度和韵律评分。">
+  <meta name="page-type" content="software">
+  <meta name="site-kind" content="software">
+  <title>发音练习 · OpenPronounce</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1c2b21;
+      --muted: #59655b;
+      --line: #dce2d7;
+      --paper: #f4f6ef;
+      --panel: #fdfff9;
+      --forest: #172b22;
+      --green: #507552;
+      --lime: #d5f49a;
+      font: 16px/1.5 "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; opacity: .55; }
+    :focus-visible { outline: 2px solid #427752; outline-offset: 4px; }
+    a { color: inherit; }
+    .shell { width: min(1120px, calc(100% - 80px)); margin-inline: auto; }
+    .skip { position: fixed; top: 10px; left: 10px; z-index: 1; padding: 10px; background: white; }
+    .skip:not(:focus) { clip-path: inset(50%); }
+    .masthead, .mast-actions, .brand, .panel-heading, .deck-top, .deck-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .masthead { min-height: 78px; gap: 12px; border-bottom: 1px solid var(--line); }
+    .brand { gap: 11px; font-size: 17px; font-weight: 700; letter-spacing: -.035em; }
+    .mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: var(--forest);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+    .mark i { width: 2px; border-radius: 2px; background: var(--lime); }
+    .mark i:nth-child(1), .mark i:nth-child(5) { height: 6px; }
+    .mark i:nth-child(2), .mark i:nth-child(4) { height: 11px; }
+    .mark i:nth-child(3) { height: 16px; }
+    .mast-actions { gap: 18px; }
+    .service { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+    .service::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #9c7b39; }
+    .service[data-state="ready"]::before { background: #5c8d4d; }
+    .service[data-state="offline"]::before { background: #a45a50; }
+    .quiet-button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 0 13px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .quiet-button:hover:not(:disabled) { background: #e9eee4; }
+    main { padding-top: clamp(32px, 5vw, 66px); }
+    .intro { margin-bottom: clamp(24px, 3.6vw, 36px); }
+    h1 { margin: 0; font-size: clamp(2.45rem, 4.5vw, 3.65rem); font-weight: 720; letter-spacing: -.065em; line-height: 1.1; }
+    .intro p { margin: 12px 0 0; color: var(--muted); }
+    .workbench { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 18px; }
+    .panel { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: clamp(18px, 3vw, 28px); }
+    .panel-heading { gap: 12px; min-height: 44px; }
+    .modes { display: inline-flex; gap: 3px; padding: 3px; background: #ebefe5; border-radius: 11px; }
+    .modes button {
+      min-height: 44px;
+      min-width: 72px;
+      padding: 0 13px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .modes button[aria-pressed="true"] { color: var(--ink); background: white; box-shadow: 0 1px 4px #182d2017; }
+    .modes button:hover:not(:disabled) { color: var(--ink); }
+    .next { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .shuffle { font-size: 1.15em; line-height: 1; }
+    .prompt { min-height: 166px; display: grid; justify-items: start; align-content: center; padding-block: 18px; }
+    .prompt p { margin: 0; color: var(--muted); font-size: 14px; }
+    .prompt h2 { margin: 5px 0 6px; font: 400 clamp(3rem, 5vw, 4.8rem)/1.06 Georgia, "Times New Roman", serif; letter-spacing: -.06em; overflow-wrap: anywhere; }
+    .prompt[data-mode="sentence"] h2 { font-size: clamp(2.25rem, 3.5vw, 3.25rem); letter-spacing: -.045em; }
+    .deck { border-radius: 13px; padding: 16px 19px 18px; background: var(--forest); color: #e9f0e7; }
+    .deck-top { gap: 14px; font-size: 13px; color: #c1cec0; }
+    .deck-state { display: inline-flex; align-items: center; gap: 7px; }
+    .deck-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #91a691; }
+    .deck[data-state="recording"] .deck-state::before { background: var(--lime); box-shadow: 0 0 0 4px #d5f49a29; }
+    .time, .score-number, .metric-value { font-variant-numeric: tabular-nums; }
+    .time { font-family: Consolas, "Courier New", monospace; font-size: 14px; }
+    .wave { display: block; width: 100%; height: 76px; margin: 3px 0 6px; }
+    .deck-bottom { gap: 12px; min-height: 46px; }
+    .record {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 0 17px;
+      border: 0;
+      border-radius: 8px;
+      color: #1c2b19;
+      background: var(--lime);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .record:hover:not(:disabled) { background: #e2fbb7; transform: translateY(-1px); }
+    .record:active:not(:disabled) { transform: translateY(0); }
+    .record:focus-visible, .deck-action:focus-visible { outline-color: var(--lime); }
+    .mic { position: relative; width: 16px; height: 17px; flex: none; }
+    .mic::before { content: ""; position: absolute; top: 0; left: 5px; width: 6px; height: 10px; border: 1.5px solid currentColor; border-radius: 5px; }
+    .mic::after { content: ""; position: absolute; top: 5px; left: 2px; width: 12px; height: 9px; border: 1.5px solid currentColor; border-top: 0; border-radius: 0 0 8px 8px; }
+    .mic i { position: absolute; bottom: 0; left: 5px; width: 6px; height: 1.5px; background: currentColor; }
+    .deck[data-state="recording"] .mic::before { inset: 3px 2px auto; width: 12px; height: 12px; border: 0; border-radius: 2px; background: currentColor; }
+    .deck[data-state="recording"] .mic::after, .deck[data-state="recording"] .mic i { display: none; }
+    .deck-action { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: #e0eade; font-size: 13px; white-space: nowrap; }
+    .deck-action:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 4px; }
+    .record-note { margin: 12px 0 0; min-height: 1.5em; color: var(--muted); font-size: 14px; }
+    .record-note[data-error="true"] { color: #a43d31; }
+    .result .panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 13px; }
+    .result h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.025em; }
+    .result-state { margin: 0; color: var(--muted); font-size: 13px; }
+    .score-display { display: grid; place-items: center; margin: 22px 0 20px; }
+    .score-ring {
+      --score: 0%;
+      display: grid;
+      place-items: center;
+      width: 138px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      padding: 6px;
+      background: conic-gradient(var(--green) var(--score), #e7ece2 0);
+    }
+    .score-inner { display: grid; justify-items: center; align-content: center; width: 100%; height: 100%; border-radius: 50%; background: var(--panel); }
+    .score-label { color: var(--muted); font-size: 13px; }
+    .score-number { font: 400 2.55rem/1.04 Georgia, serif; letter-spacing: -.065em; }
+    .score-max { color: var(--muted); font-size: 12px; }
+    .metrics { margin: 0; display: grid; gap: 12px; }
+    .metric { display: grid; grid-template-columns: 4.15em minmax(0, 1fr) 3em; gap: 10px; align-items: center; font-size: 14px; }
+    .metric dd, .metric dt { margin: 0; }
+    .metric-value { text-align: right; color: var(--muted); }
+    .track { height: 5px; border-radius: 10px; background: #e7ece2; }
+    .track span { display: block; width: 0; height: 100%; border-radius: inherit; background: #6b8c60; transition: width .3s ease; }
+    .feedback { margin: 17px 0 0; padding-top: 13px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+    footer { display: flex; justify-content: space-between; gap: 12px; padding-block: 19px 28px; font-size: 13px; color: var(--muted); }
+    footer a { text-underline-offset: 3px; }
+    dialog { width: min(410px, calc(100% - 32px)); padding: 23px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); color: var(--ink); }
+    dialog::backdrop { background: #14271db5; }
+    dialog h2 { margin: 0 0 6px; font-size: 21px; }
+    dialog p { margin: 0 0 13px; color: var(--muted); font-size: 14px; }
+    dialog label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 650; }
+    dialog input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #98aa94; border-radius: 8px; background: white; color: var(--ink); }
+    .dialog-actions { display: flex; justify-content: end; gap: 8px; margin-top: 17px; }
+    [data-enter] { animation: enter .42s ease-out both; }
+    @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 840px) { .shell { width: calc(100% - 42px); } }
+    @media (max-width: 690px) {
+      .shell { width: calc(100% - 32px); }
+      .workbench { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+      .masthead { min-height: 66px; }
+      .mast-actions { gap: 12px; }
+      .prompt { min-height: 149px; }
+      .score-display { margin-block: 19px; }
+    }
+    @media (max-width: 380px) {
+      .brand { gap: 7px; font-size: 15px; }
+      .service { font-size: 12px; }
+      .mast-actions { gap: 7px; }
+      .quiet-button { padding-inline: 8px; }
+      .modes button { min-width: 65px; }
+      .deck { padding-inline: 12px; }
+      .deck-bottom { gap: 3px; }
+      .deck-action { padding-inline: 4px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#practice">跳到练习</a>
+  <header class="shell masthead">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span>OpenPronounce</span>
+    </div>
+    <div class="mast-actions">
+      <span class="service" id="service" role="status">连接中</span>
+      <button class="quiet-button" type="button" id="settings">API 密钥</button>
+    </div>
+  </header>
+
+  <main class="shell" id="practice" data-enter>
+    <div class="intro">
+      <h1>发音练习</h1>
+      <p>对着麦克风朗读，录完就能查看发音评分。</p>
+    </div>
+
+    <div class="workbench">
+      <section class="panel" aria-label="朗读与录音">
+        <div class="panel-heading">
+          <div class="modes" role="group" aria-label="练习模式">
+            <button type="button" data-mode="word" aria-pressed="true">单词</button>
+            <button type="button" data-mode="sentence" aria-pressed="false">短句</button>
+          </div>
+          <button class="quiet-button next" id="next" type="button">
+            <span class="shuffle" aria-hidden="true">↻</span>换一题
+          </button>
+        </div>
+
+        <div class="prompt" id="prompt" data-mode="word">
+          <p>请朗读</p>
+          <h2 id="reading" lang="en">apple</h2>
+          <p id="meaning">/ˈæp.əl/ · 苹果</p>
+        </div>
+
+        <div class="deck" id="deck" data-state="idle">
+          <div class="deck-top">
+            <span class="deck-state" id="deck-state">准备录音</span>
+            <span class="time" id="time">00:00</span>
+          </div>
+          <canvas class="wave" id="wave" aria-hidden="true"></canvas>
+          <div class="deck-bottom">
+            <button class="record" id="record" type="button">
+              <span class="mic" aria-hidden="true"><i></i></span><span id="record-label">开始录音</span>
+            </button>
+            <div>
+              <button class="deck-action" id="replay" type="button" hidden>回听录音</button>
+              <button class="deck-action" id="retry" type="button" hidden>重新评分</button>
+            </div>
+          </div>
+        </div>
+        <p class="record-note" id="record-note" role="status">读完后点击停止，自动提交评分。</p>
+        <audio id="playback" preload="none" hidden></audio>
+      </section>
+
+      <section class="panel result" aria-labelledby="result-title">
+        <div class="panel-heading">
+          <h2 id="result-title">评分结果</h2>
+          <p class="result-state" id="result-state" role="status">待录音</p>
+        </div>
+        <div class="score-display">
+          <div class="score-ring" id="score-ring">
+            <div class="score-inner">
+              <span class="score-label">总分</span>
+              <span class="score-number" id="score">—</span>
+              <span class="score-max">/ 100</span>
+            </div>
+          </div>
+        </div>
+        <dl class="metrics">
+          <div class="metric"><dt>准确度</dt><dd class="track" aria-hidden="true"><span id="accuracy-bar"></span></dd><dd class="metric-value" id="accuracy">—</dd></div>
+          <div class="metric"><dt>流利度</dt><dd class="track" aria-hidden="true"><span id="fluency-bar"></span></dd><dd class="metric-value" id="fluency">—</dd></div>
+          <div class="metric"><dt>韵律</dt><dd class="track" aria-hidden="true"><span id="prosodic-bar"></span></dd><dd class="metric-value" id="prosodic">—</dd></div>
+        </dl>
+        <p class="feedback" id="feedback" aria-live="polite">录音提交后，评分会显示在这里。</p>
+      </section>
+    </div>
+  </main>
+  <footer class="shell">
+    <span>录音仅用于本次评分。</span>
+    <a href="https://github.com/neozhu/openpronounce-api">源代码</a>
+  </footer>
+
+  <dialog id="key-dialog" aria-labelledby="key-title">
+    <form id="key-form">
+      <h2 id="key-title">API 密钥</h2>
+      <p id="key-hint">如服务启用了鉴权，请输入服务配置的密钥。</p>
+      <label for="key">密钥</label>
+      <input id="key" type="password" autocomplete="off" spellcheck="false" autofocus>
+      <div class="dialog-actions">
+        <button class="quiet-button" type="button" id="close-settings">取消</button>
+        <button class="record" type="submit" id="save-key">使用密钥</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const exercises = {
+      word: [
+        ["apple", "/ˈæp.əl/ · 苹果"],
+        ["window", "/ˈwɪn.doʊ/ · 窗户"],
+        ["travel", "/ˈtræv.əl/ · 旅行"],
+        ["water", "/ˈwɑː.tɚ/ · 水"],
+        ["garden", "/ˈɡɑːr.dən/ · 花园"],
+        ["morning", "/ˈmɔːr.nɪŋ/ · 早晨"]
+      ],
+      sentence: [
+        ["I like eating apples.", "我喜欢吃苹果。"],
+        ["The sky is clear today.", "今天的天空很晴朗。"],
+        ["Please close the window.", "请把窗户关上。"],
+        ["We walk to school together.", "我们一起走路去学校。"],
+        ["There is a book on the table.", "桌上有一本书。"],
+        ["Can I have a glass of water?", "我能喝一杯水吗？"]
+      ]
+    };
+    const reasonMessages = {
+      audio_too_short: "录音太短，请完整读一遍。",
+      audio_silent: "没有检测到声音，请靠近麦克风再读一次。",
+      audio_too_quiet: "声音太轻，请靠近麦克风。",
+      audio_clipped: "声音过大，请稍微远离麦克风。",
+      audio_noisy: "背景噪声较大，请换个安静的环境。",
+      missing_words: "可能有漏读，请完整读一遍。",
+      text_mismatch: "识别到的内容与题目不同，请看着题目再读一次。",
+      extra_speech: "录音里有额外的语音，请只朗读题目。"
+    };
+    const errorMessages = {
+      AUDIO_TOO_LARGE: "录音文件过大，请缩短录音后重试。",
+      AUDIO_UNSUPPORTED_FORMAT: "服务无法读取这种录音格式，请换一个浏览器重试。",
+      AUDIO_UNPROCESSABLE: "录音无法处理，请完整读一遍后重试。",
+      SERVER_BUSY: "服务正在处理另一段录音，请稍等后重试。",
+      MODEL_UNAVAILABLE: "评分模型暂未就绪，可以稍后重新评分。",
+      ASSESSMENT_TIMEOUT: "评分超时，可以重新提交这段录音。"
+    };
+    const byId = (id) => document.getElementById(id);
+    const modeButtons = [...document.querySelectorAll(".modes button")];
+    const prompt = byId("prompt");
+    const reading = byId("reading");
+    const meaning = byId("meaning");
+    const deck = byId("deck");
+    const recordButton = byId("record");
+    const note = byId("record-note");
+    const resultState = byId("result-state");
+    const feedback = byId("feedback");
+    const playback = byId("playback");
+    const replay = byId("replay");
+    const retry = byId("retry");
+    const keyDialog = byId("key-dialog");
+    const keyInput = byId("key");
+    const canvas = byId("wave");
+    const drawing = canvas.getContext("2d");
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    const modes = { word: 0, sentence: 0 };
+    const initialNote = "读完后点击停止，自动提交评分。";
+    const idleWave = [1, 2, 3, 5, 8, 12, 19, 28, 24, 13, 7, 9, 17, 29, 40, 50, 33, 17, 12, 20, 37, 56, 65, 42, 21, 11, 20, 31, 39, 28, 15, 7, 10, 17, 26, 23, 14, 7, 5, 3, 2, 1];
+    let mode = "word";
+    let state = "idle";
+    let microphone;
+    let recorder;
+    let audioContext;
+    let analyser;
+    let samples;
+    let recordingFrame;
+    let timer;
+    let startedAt;
+    let take;
+    let playbackUrl;
+    let apiKey = "";
+    let needsKey = false;
+
+    function setNote(message, error = false) {
+      note.textContent = message;
+      note.dataset.error = String(error);
+    }
+
+    function setState(next) {
+      state = next;
+      deck.dataset.state = next;
+      const busy = next !== "idle";
+      const labels = {
+        idle: ["准备录音", "开始录音"],
+        requesting: ["等待麦克风权限", "等待授权"],
+        recording: ["正在录音", "停止并评分"],
+        preparing: ["正在整理录音", "处理中"],
+        scoring: ["正在评估发音", "评分中"]
+      };
+      const [status, action] = labels[next];
+      byId("deck-state").textContent = status;
+      byId("record-label").textContent = action;
+      recordButton.disabled = busy && next !== "recording";
+      byId("next").disabled = busy;
+      modeButtons.forEach((button) => { button.disabled = busy; });
+      replay.disabled = busy;
+      retry.disabled = busy;
+      if (next !== "recording") drawWave();
+    }
+
+    function renderScores(scores) {
+      const overall = scores?.overall;
+      byId("score").textContent = Number.isFinite(overall) ? overall.toFixed(1) : "—";
+      byId("score-ring").style.setProperty("--score", Number.isFinite(overall) ? `${overall}%` : "0%");
+      for (const name of ["accuracy", "fluency", "prosodic"]) {
+        const value = scores?.[name];
+        byId(name).textContent = Number.isFinite(value) ? value.toFixed(1) : "—";
+        byId(`${name}-bar`).style.width = Number.isFinite(value) ? `${value}%` : "0%";
+      }
+    }
+
+    function clearTake() {
+      playback.pause();
+      playback.removeAttribute("src");
+      if (playbackUrl) URL.revokeObjectURL(playbackUrl);
+      playbackUrl = undefined;
+      take = undefined;
+      needsKey = false;
+      playback.load();
+      replay.hidden = true;
+      retry.hidden = true;
+      byId("time").textContent = "00:00";
+      renderScores(null);
+      resultState.textContent = "待录音";
+      feedback.textContent = "录音提交后，评分会显示在这里。";
+    }
+
+    function showExercise() {
+      const [text, hint] = exercises[mode][modes[mode]];
+      prompt.dataset.mode = mode;
+      reading.textContent = text;
+      meaning.textContent = hint;
+      modeButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+      });
+      clearTake();
+      setNote(initialNote);
+    }
+
+    function drawWave() {
+      if (!drawing) return;
+      const { width, height } = canvas.getBoundingClientRect();
+      if (!width || !height) return;
+      const ratio = devicePixelRatio || 1;
+      const pixelWidth = Math.round(width * ratio);
+      const pixelHeight = Math.round(height * ratio);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      drawing.setTransform(ratio, 0, 0, ratio, 0, 0);
+      drawing.clearRect(0, 0, width, height);
+      drawing.fillStyle = "#415d4b";
+      drawing.fillRect(0, height / 2, width, 1);
+      const live = state === "recording" && analyser && !reducedMotion.matches;
+      if (live) analyser.getByteTimeDomainData(samples);
+      const step = width / idleWave.length;
+      for (const [index, sampleHeight] of idleWave.entries()) {
+        const offset = live ? Math.floor(index * samples.length / idleWave.length) : 0;
+        const amplitude = live ? Math.abs(samples[offset] - 128) / 128 : 0;
+        const barHeight = live ? Math.min(height - 4, 3 + amplitude * 135) : sampleHeight * .78;
+        drawing.fillStyle = live ? "#d5f49a" : index > 12 && index < 29 ? "#9bbc77" : "#66875f";
+        drawing.beginPath();
+        drawing.roundRect(step * (index + .5) - 1.5, (height - barHeight) / 2, 3, barHeight, 2);
+        drawing.fill();
+      }
+      if (live) recordingFrame = requestAnimationFrame(drawWave);
+    }
+
+    function startMeter() {
+      if (!window.AudioContext || reducedMotion.matches) return;
+      try {
+        audioContext = new AudioContext();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        samples = new Uint8Array(analyser.fftSize);
+        audioContext.createMediaStreamSource(microphone).connect(analyser);
+        audioContext.resume().catch(() => {});
+        drawWave();
+      } catch {
+        analyser = undefined;
+      }
+    }
+
+    function stopCapture() {
+      clearInterval(timer);
+      cancelAnimationFrame(recordingFrame);
+      microphone?.getTracks().forEach((track) => track.stop());
+      microphone = undefined;
+      analyser = undefined;
+      if (audioContext) audioContext.close().catch(() => {});
+      audioContext = undefined;
+    }
+
+    function updateTime() {
+      const seconds = Math.min(30, Math.floor((performance.now() - startedAt) / 1000));
+      byId("time").textContent = `00:${String(seconds).padStart(2, "0")}`;
+      if (seconds >= 30) stopRecording();
+    }
+
+    function stopRecording() {
+      if (state !== "recording") return;
+      setState("preparing");
+      recorder.stop();
+    }
+
+    async function wavFrom(clip) {
+      const context = new AudioContext();
+      try {
+        const audio = await context.decodeAudioData(await clip.arrayBuffer());
+        const bytes = new ArrayBuffer(44 + 2 * audio.length);
+        const view = new DataView(bytes);
+        const write = (offset, value) => {
+          [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+        };
+        write(0, "RIFF");
+        view.setUint32(4, bytes.byteLength - 8, true);
+        write(8, "WAVEfmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, audio.sampleRate, true);
+        view.setUint32(28, audio.sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        write(36, "data");
+        view.setUint32(40, audio.length * 2, true);
+        const channels = Array.from({ length: audio.numberOfChannels }, (_, index) => audio.getChannelData(index));
+        for (let index = 0; index < audio.length; index++) {
+          const sample = channels.reduce((sum, channel) => sum + channel[index], 0) / channels.length;
+          view.setInt16(44 + index * 2, Math.round(Math.max(-32768, Math.min(32767, sample * 32768))), true);
+        }
+        return new Blob([bytes], { type: "audio/wav" });
+      } finally {
+        await context.close();
+      }
+    }
+
+    async function finishRecording(chunks, mime) {
+      const elapsed = performance.now() - startedAt;
+      stopCapture();
+      if (state !== "preparing" && state !== "recording") return;
+      setState("preparing");
+      if (!chunks.length || elapsed < 350) {
+        setState("idle");
+        setNote("录音太短，请完整读完再停止。", true);
+        return;
+      }
+      try {
+        const clip = new Blob(chunks, { type: mime || chunks[0].type });
+        const format = clip.type.split(";")[0];
+        const extension = { "audio/webm": "webm", "audio/ogg": "ogg", "audio/wav": "wav" }[format];
+        take = {
+          blob: extension ? clip : await wavFrom(clip),
+          filename: `reading.${extension || "wav"}`,
+          text: reading.textContent,
+          mode
+        };
+        playbackUrl = URL.createObjectURL(clip);
+        playback.src = playbackUrl;
+        replay.hidden = false;
+        await scoreTake();
+      } catch {
+        setState("idle");
+        setNote("无法处理录音，请再试一次。", true);
+      }
+    }
+
+    async function startRecording() {
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        setNote("请在本机地址或 HTTPS 页面上使用支持录音的浏览器。", true);
+        return;
+      }
+      setState("requesting");
+      setNote("请在浏览器提示中允许使用麦克风。");
+      try {
+        microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus"].find(
+          (type) => MediaRecorder.isTypeSupported(type)
+        );
+        recorder = new MediaRecorder(microphone, mimeType ? { mimeType } : undefined);
+        const chunks = [];
+        recorder.addEventListener("dataavailable", ({ data }) => { if (data.size) chunks.push(data); });
+        recorder.addEventListener("stop", () => finishRecording(chunks, recorder.mimeType), { once: true });
+        recorder.addEventListener("error", () => {
+          setState("idle");
+          stopCapture();
+          setNote("录音意外中断，请重新录音。", true);
+        }, { once: true });
+        recorder.start();
+        clearTake();
+        startedAt = performance.now();
+        setState("recording");
+        setNote("正在录音，读完后点击停止。");
+        timer = setInterval(updateTime, 200);
+        startMeter();
+      } catch (error) {
+        stopCapture();
+        setState("idle");
+        const failure = error.name === "NotAllowedError" ? "麦克风权限未开启，请在浏览器地址栏中允许后重试。"
+          : error.name === "NotFoundError" ? "没有找到麦克风，请连接后重试。"
+          : "无法开启麦克风，请确认设备可用后重试。";
+        setNote(failure, true);
+      }
+    }
+
+    function openSettings(retryWithKey = false) {
+      byId("key-hint").textContent = retryWithKey
+        ? "密钥缺失或无效。输入配置的密钥后，将重新提交当前录音。"
+        : "如服务启用了鉴权，请输入服务配置的密钥。";
+      byId("save-key").textContent = retryWithKey ? "保存并评分" : "使用密钥";
+      keyInput.value = apiKey;
+      keyInput.required = retryWithKey;
+      if (!keyDialog.open) keyDialog.showModal();
+    }
+
+    function showResult(payload) {
+      if (payload.status === "uncertain") {
+        renderScores(null);
+        resultState.textContent = "建议重录";
+        const reasons = (payload.reasons || []).map((reason) => reasonMessages[reason]).filter(Boolean);
+        feedback.textContent = reasons.length ? [...new Set(reasons)].join(" ") : "这次录音不足以给出可靠分数，请再读一次。";
+        return;
+      }
+      renderScores(payload.scores);
+      resultState.textContent = "已评分";
+      const review = (payload.words || []).filter(({ mispronounced, missing }) => mispronounced || missing)
+        .map(({ text }) => text);
+      feedback.textContent = review.length ? `可以再练一下 ${[...new Set(review)].slice(0, 4).join("、")}。`
+        : payload.transcription ? `识别到：${payload.transcription}` : "可以回听录音，对照题目再练一遍。";
+    }
+
+    async function scoreTake() {
+      if (!take) return;
+      setState("scoring");
+      retry.hidden = true;
+      needsKey = false;
+      resultState.textContent = "评分中";
+      feedback.textContent = "正在分析这段录音。";
+      setNote("评分完成后可回听本次录音。");
+      const form = new FormData();
+      form.append("audio", take.blob, take.filename);
+      form.append("text", take.text);
+      form.append("language", "en");
+      form.append("mode", take.mode);
+      try {
+        const response = await fetch("/api/v1/assess", {
+          method: "POST",
+          headers: apiKey ? { "X-API-Key": apiKey } : {},
+          body: form
+        });
+        if (response.status === 401) {
+          needsKey = true;
+          throw new Error("请输入有效的 API 密钥后重试。");
+        }
+        const payload = await response.json();
+        if (!response.ok) {
+          if (response.status === 503) checkService();
+          throw new Error(errorMessages[payload.error?.code] || "评分失败，可以重新提交这段录音。");
+        }
+        showResult(payload);
+        setNote("可以回听录音，或继续练下一题。");
+      } catch (error) {
+        resultState.textContent = "评分未完成";
+        feedback.textContent = "录音已保留，可以重新提交评分。";
+        retry.hidden = false;
+        setNote(error instanceof TypeError || error instanceof SyntaxError ? "无法连接评分服务，请稍后重试。" : error.message, true);
+      } finally {
+        setState("idle");
+        if (needsKey) openSettings(true);
+      }
+    }
+
+    let healthTimer;
+    async function checkService() {
+      clearTimeout(healthTimer);
+      const indicator = byId("service");
+      try {
+        const response = await fetch("/health/ready", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+        indicator.dataset.state = response.ok ? "ready" : "waiting";
+        indicator.textContent = response.ok ? "服务就绪" : "模型未就绪";
+        if (response.ok) return;
+      } catch {
+        indicator.dataset.state = "offline";
+        indicator.textContent = "服务未连接";
+      }
+      healthTimer = setTimeout(checkService, 7000);
+    }
+
+    modeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (mode === button.dataset.mode) return;
+        mode = button.dataset.mode;
+        showExercise();
+      });
+    });
+    byId("next").addEventListener("click", () => {
+      modes[mode] = (modes[mode] + 1) % exercises[mode].length;
+      showExercise();
+    });
+    recordButton.addEventListener("click", () => {
+      if (state === "recording") stopRecording();
+      if (state === "idle") startRecording();
+    });
+    retry.addEventListener("click", () => needsKey ? openSettings(true) : scoreTake());
+    replay.addEventListener("click", async () => {
+      if (!playback.paused) {
+        playback.pause();
+        return;
+      }
+      try { await playback.play(); }
+      catch { setNote("无法回听这段录音。", true); }
+    });
+    for (const event of ["play", "pause", "ended"]) {
+      playback.addEventListener(event, () => { replay.textContent = playback.paused ? "回听录音" : "暂停回听"; });
+    }
+    byId("settings").addEventListener("click", () => openSettings(needsKey));
+    byId("close-settings").addEventListener("click", () => keyDialog.close());
+    keyDialog.addEventListener("close", () => { keyInput.value = ""; });
+    byId("key-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      apiKey = keyInput.value.trim();
+      keyDialog.close();
+      if (needsKey && apiKey && state === "idle") scoreTake();
+    });
+    new ResizeObserver(() => { if (state !== "recording") drawWave(); }).observe(canvas);
+    addEventListener("pagehide", () => {
+      state = "idle";
+      stopCapture();
+      clearTimeout(healthTimer);
+    });
+    drawWave();
+    checkService();
+  </script>
+</body>
+</html>

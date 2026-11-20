@@ -1,0 +1,23 @@
+OpenPronounce API
+Copyright (c) 2026 neo.zhu
+
+This release is licensed under the GNU Affero General Public License,
+version 3 or any later version. See LICENSE. The notice for versions
+previously released under the MIT License is preserved in LICENSE-MIT.
+
+Corresponding source and build instructions:
+https://github.com/neozhu/openpronounce-api
+The container's org.opencontainers.image.revision label identifies the
+exact source commit.
+
+This distribution includes OpenPronounce 1.1.0 under AGPL-3.0-or-later.
+Its Python distribution retains its LICENSE and NOTICE. The corresponding
+source, including the bundled scoring models, is available at:
+https://github.com/OpenPronounce/OpenPronounce/tree/v1.1.0
+https://pypi.org/project/openpronounce/1.1.0/#files
+
+The following Meta checkpoints and their accompanying configuration,
+tokenizer files, and model cards are distributed under Apache License 2.0.
+See LICENSE-APACHE and the model cards in the image cache.
+https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft/tree/ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4
+https://huggingface.co/facebook/wav2vec2-large-960h/tree/bdeaacdf88f7a155f50a2704bc967aa81fbbb2ab
