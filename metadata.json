@@ -1,0 +1,5 @@
+{
+  "name": "OpenPronounce API",
+  "description": "Phonetic pronunciation REST API, IPA transcription workbench, and lexicon explorer for English words and phrases.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,576 @@
+# OpenPronounce API — Production Development SPEC v1.0
+
+> **Status:** Ready for implementation  
+> **Date:** 2026-11-20  
+> **Project:** `openpronounce-api`  
+> **Scope:** English word, phrase and sentence reading assessment; CPU-only; upload + URL input; Docker / GitHub Actions / GHCR.
+
+## 1. Goal and decisions
+
+Build an independent, maintainable **FastAPI service** wrapping the OpenPronounce Python library. It accepts a target English text and a learner's recorded audio, evaluates pronunciation on CPU, and returns a stable, application-friendly JSON contract. The service is reusable by .NET/Blazor, mobile, and automation clients.
+
+### Locked technology decisions
+
+| Item | Decision |
+|---|---|
+| Runtime | **Python 3.12** (`>=3.12,<3.13`) |
+| API | FastAPI + Pydantic v2 + Uvicorn |
+| Scoring engine | `openpronounce==1.1.0` initially; pin transitive dependencies with a lockfile |
+| Device | CPU only: `OPENPRONOUNCE_DEVICE=cpu` |
+| Assessment | Known English text: word / phrase / sentence; no free speech endpoint in v1 |
+| TTS / generated reference | **Disabled** (`acoustic=False`); no Kokoro, Piper, Google TTS |
+| Recognition | `transcription=True` by default to retain wrong/missing-word feedback |
+| Prosody contour generation | `prosody=False` by default (does **not** disable the engine's trained `prosodic` score) |
+| Input | Multipart audio upload **and** HTTPS audio URL |
+| Audio decoding | WAV / MP3 / FLAC / OGG / WebM, through supported decoder stack (`ffmpeg` / `load_audio`) |
+| Distribution | Docker Compose + image pushed to GitHub Container Registry (GHCR) |
+| Tests | Pytest unit/API + security cases; optional real-model integration and Docker smoke tests |
+| Database / UI | None in v1 |
+
+### Explicit non-goals
+
+No TTS playback, speech cloning, open-ended ASR chat, account management, persistent audio storage, scheduled processing, queue/database, model training, automatic pronunciation coaching with an LLM, or arbitrary remote URL fetching without egress controls.
+
+### Upstream assumptions to verify at implementation
+
+- `openpronounce.assess(waveform, text, lang="en", acoustic=False, prosody=False, transcription=True)` delegates to the read-speech engine in 1.1.0.
+- `load_audio(path)` normalizes accepted source audio to a 16 kHz mono waveform.
+- The trained scores are separate from the older synthetic-audio `formula_score`. With `acoustic=False`, `formula_score` / `acoustic_distance` may be unavailable; this is expected.
+- `reliable=false` means the score is unsuitable for user-facing pass/fail; map it to an uncertain result.
+- Upstream **evaluated sentence readings**, not a guaranteed single-word correctness classifier. Unit tests must not invent quantitative model accuracy.
+
+Documentation: https://openpronounce.github.io/docs/read-speech.html and https://openpronounce.github.io/docs/results.html
+
+---
+
+## 2. Repository structure
+
+```text
+openpronounce-api/
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                 # fast PR/push checks, no model download
+│   │   ├── docker-publish.yml     # tagged image release to GHCR
+│   │   └── model-smoke.yml        # manually triggered full-model validation
+│   └── dependabot.yml            # optional, separate upstream upgrade PRs
+├── src/openpronounce_api/
+│   ├── __init__.py
+│   ├── main.py                    # FastAPI app, lifespan, exception handlers
+│   ├── api/
+│   │   ├── routes_assess.py       # upload and URL endpoints
+│   │   └── routes_health.py
+│   ├── core/
+│   │   ├── config.py              # Pydantic settings
+│   │   ├── errors.py              # standardized error codes
+│   │   ├── logging.py             # request IDs, redaction
+│   │   └── security.py            # API key and URL policy
+│   ├── schemas/
+│   │   ├── requests.py
+│   │   └── responses.py
+│   ├── services/
+│   │   ├── audio.py               # validation, decode/normalize, cleanup
+│   │   ├── audio_downloader.py    # secure HTTPS downloader
+│   │   ├── pronunciation.py       # orchestration, concurrency guard
+│   │   └── result_mapper.py       # upstream → stable response
+│   └── adapters/
+│       └── openpronounce_adapter.py
+├── tests/
+│   ├── conftest.py
+│   ├── unit/
+│   │   ├── test_result_mapper.py
+│   │   ├── test_audio_validation.py
+│   │   ├── test_url_policy.py
+│   │   └── test_auth.py
+│   ├── api/
+│   │   ├── test_upload.py
+│   │   ├── test_url.py
+│   │   └── test_health.py
+│   ├── integration/
+│   │   └── test_real_model.py
+│   └── fixtures/
+│       ├── invalid_audio.bin
+│       └── README.md             # add redistributable voice fixtures later
+├── scripts/
+│   ├── test.sh                    # ruff + pytest fast suite
+│   ├── test-api.sh                # runtime smoke via curl
+│   ├── test-model.sh              # opt-in real-model fixture check
+│   └── prepare-models.py         # warm/cache exact model artifacts
+├── docs/
+│   ├── api.md
+│   ├── deployment.md
+│   ├── security.md
+│   └── license.md
+├── .dockerignore
+├── .env.example
+├── Dockerfile
+├── compose.yaml
+├── pyproject.toml
+├── uv.lock                       # checked-in exact resolution
+├── README.md
+├── CHANGELOG.md
+└── LICENSE                       # comply with evaluated license strategy
+```
+
+Use `uv` or equivalent to generate/check `uv.lock`. CI must use frozen/locked installs and reject an inconsistent lockfile. Avoid creating one file for every trivial function.
+
+---
+
+## 3. Public API contract
+
+**Versioning**: `/api/v1`. The upload and URL entry points call the **same** validation, inference and response-mapping pipeline.
+
+### 3.1 `POST /api/v1/assess` — file upload
+
+`multipart/form-data`:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `audio` | binary file | yes | WAV / MP3 / FLAC / OGG / WebM |
+| `text` | string | yes | Expected English reading, e.g. `apple` or `I like apples.` |
+| `language` | string | no | Default `en`; accept `en-US` as API alias mapped to upstream `en` (not strict accent verification) |
+| `mode` | enum | no | `auto` (default), `word`, `phrase`, `sentence`: metadata/UI hint only, not separate model weights |
+
+Example:
+
+```bash
+curl --fail-with-body \
+  -H "X-API-Key: $OPENPRONOUNCE_API_KEY" \
+  -F 'audio=@tests/fixtures/english_sentence.wav' \
+  -F 'text=I like eating apples.' \
+  http://127.0.0.1:8000/api/v1/assess
+```
+
+### 3.2 `POST /api/v1/assess/url` — audio URL
+
+`Content-Type: application/json`:
+
+```json
+{
+  "audio_url": "https://media.example.org/recordings/answer.webm?signature=redacted",
+  "text": "I like eating apples.",
+  "language": "en",
+  "mode": "auto"
+}
+```
+
+**Contract**: URL is an ephemeral download source, **not** a permanent server-side attachment. Do not persist the raw URL or query string. Expiring OSS/S3 pre-signed HTTPS URLs are supported if their hostname is permitted by the egress policy. URL request runs through identical audio validation/inference/mapping as upload.
+
+### 3.3 `GET /health/live` and `GET /health/ready`
+
+- `live`: process/HTTP loop up; **never** force model initialization.
+- `ready`: engine initialized and able to accept work. If model downloads fail, return `503` with a generic error; avoid blocking liveness probes on heavyweight inference.
+- For operational clients, add `GET /version` (app and engine version; no sensitive environment values).
+- Swagger available at `/docs` when allowed; in production it may be exposed only internally.
+
+### 3.4 Unified successful response (illustrative schema, not measured results)
+
+```json
+{
+  "request_id": "01JXYZEXAMPLE",
+  "status": "assessed",
+  "text": "I like eating apples.",
+  "language": "en",
+  "mode": "sentence",
+  "reliable": true,
+  "reasons": [],
+  "scores": {
+    "overall": 82.1,
+    "accuracy": 78.0,
+    "fluency": 88.0,
+    "prosodic": 81.0
+  },
+  "transcription": "I LIKE EATING APPLES",
+  "words": [
+    {
+      "text": "apples",
+      "position": 4,
+      "start_seconds": 1.2,
+      "end_seconds": 1.8,
+      "mispronounced": true,
+      "missing": false,
+      "expected_ipa": "...",
+      "heard_ipa": "...",
+      "confidence": 0.79,
+      "phonemes": [
+        {
+          "expected": "z",
+          "heard": "s",
+          "confidence": 0.65,
+          "start_seconds": 1.65,
+          "end_seconds": 1.75
+        }
+      ]
+    }
+  ],
+  "extra_speech": [],
+  "audio_quality": {
+    "duration_seconds": 2.0,
+    "issues": []
+  },
+  "engine": {
+    "name": "openpronounce",
+    "version": "1.1.0"
+  }
+}
+```
+
+The numbers/phones are **illustrations**, not actual expected model output. `words`, `phones`, timestamps and IPA must be mapped from real upstream fields; never fabricate detail when upstream does not supply it. Nullable fields are allowed. Preserve upstream's zero-based/one-based position semantics consistently; document chosen public convention (recommended: 0-based).
+
+**Reliability policy**:
+
+- `status = assessed` only when `reliable=true`.
+- `status = uncertain` if upstream `reliable=false`; `reasons` includes safe reason codes (e.g. `audio_too_short`, `text_mismatch`, `audio_noisy`, `missing_words`).
+- For `uncertain`, default `scores = null` in the **public** response to avoid misleading learners. Structured diagnostic data can remain in internal logs/metrics *without* user audio or URLs; never expose a misleading pass/fail.
+- Do **not** add a `correct` boolean or default 80-point threshold in v1. Different accents, ages and short words require empirical calibration.
+- `mode` is derived from validated reference text for display if `auto` and must not silently change scoring.
+- Return engine metadata and `request_id`, but no raw local paths.
+
+### 3.5 Standard error JSON
+
+```json
+{
+  "request_id": "01JXYZEXAMPLE",
+  "error": {
+    "code": "AUDIO_UNSUPPORTED_FORMAT",
+    "message": "Unsupported or invalid audio format"
+  }
+}
+```
+
+| HTTP | Example code | Semantics |
+|---|---|---|
+| 400 | `INVALID_REQUEST` | Text / mode / URL schema invalid |
+| 401 | `UNAUTHORIZED` | API key absent or invalid when enabled |
+| 413 | `AUDIO_TOO_LARGE` | Upload/download exceeds limit |
+| 415 | `AUDIO_UNSUPPORTED_FORMAT` | Media content cannot be decoded as allowed audio |
+| 422 | `AUDIO_UNPROCESSABLE` | Empty/undecodable waveform, or invalid duration |
+| 429 | `SERVER_BUSY` | CPU inference concurrency capacity reached |
+| 502 | `AUDIO_FETCH_FAILED` | Remote host/HTTP response could not supply valid audio |
+| 503 | `MODEL_UNAVAILABLE` | Engine uninitialized or loading failed |
+| 504 | `ASSESSMENT_TIMEOUT` | Request/download/inference timeout |
+| 500 | `INTERNAL_ERROR` | Unexpected server failure; sanitized public message |
+
+**Note:** Valid but very quiet/noisy speech can return **200 + `status=uncertain`**; it is not necessarily a malformed request.
+
+---
+
+## 4. Audio validation and processing
+
+1. Validate request text; require non-empty English target and reasonable bounds (`MAX_TEXT_CHARS=500`, 1–80 words for v1; defaults configurable). Longer text is explicitly outside current acceptance scope.
+2. Limit incoming audio bytes (`MAX_AUDIO_BYTES=20 MiB` by default) **during streaming**, not only from Content-Length.
+3. Detect the real file container via probing/decoding rather than trusting MIME or file extension; reject unsupported formats and non-audio files.
+4. Normalize audio to **16 kHz, mono**, in a bounded subprocess or `load_audio`; control `ffmpeg` CPU/time/memory where possible, and reject implausible/oversized decoded outputs.
+5. Enforce decoded duration (`MIN_AUDIO_SECONDS=0.3`, `MAX_AUDIO_SECONDS=60` initially); very short but decodable clips may later be returned as `uncertain` based on upstream quality results. Defaults must be tuned by empirical tests; 0.3 is only an input sanity bound, not a guarantee of reliable evaluation.
+6. Write a unique temporary file with strict permissions; remove it in `finally` for success, decode failure, timeout, cancellation and model failure. Never keep audio by default.
+7. Feed normalized waveform to one in-process `OpenPronounceAdapter`. No TTS or audio-reference generation.
+8. Use CPU inference guard (`MAX_CONCURRENT_INFERENCES=1` initially) and a bounded request queue or fail-fast 429; never start multiple heavyweight model copies by multiplying Uvicorn workers.
+9. Keep optional text and audio strictly out of normal application logs. Emit request ID, latency, size, duration, status, version and error code only.
+
+### Engine adapter contract
+
+```python
+from openpronounce import assess, load_audio
+
+class OpenPronounceAdapter:
+    def assess(self, audio_path: str, text: str) -> dict:
+        waveform = load_audio(audio_path)
+        return assess(
+            waveform,
+            text,
+            lang="en",
+            acoustic=False,
+            prosody=False,
+            transcription=True,
+        )
+```
+
+The snippet is the intended *adapter boundary*, not a complete production service. Wrap its blocking model execution with a bounded worker strategy (`anyio.to_thread.run_sync` or a dedicated executor), cancellation/timeout, and concurrency controls. Do not let async routes run CPU work directly on the event loop.
+
+**Important:** `transcription=False` is an **optional later optimization**; with current v1 requirements retain it to help detect word mismatch. Upstream documentation notes that disabling it reduces memory and avoids loading the second checkpoint, but sacrifices word transcript output.
+
+---
+
+## 5. Secure audio URL ingestion (must-pass requirements)
+
+Public server-side URL fetching creates SSRF exposure. Implement the URL endpoint as a **restricted fetcher**, never use a naive `httpx.get(user_url)` / `requests.get(user_url)` implementation.
+
+1. `URL_FETCH_ENABLED=true|false`; **default false** until an allowed host list has been configured. The service can expose the endpoint but reject URL requests if disabled.
+2. `ALLOWED_AUDIO_HOSTS=media.example.org,*.trusted-storage.example.com` and **no wildcard-all** mode in production. Hostname matching must be exact or dot-boundary-safe (not suffix substring).
+3. Only `https` and standard permitted TCP ports (default 443); reject userinfo, fragments, IP literals, malformed internationalized hostnames, encoded control characters, and ambiguous URL syntax.
+4. Resolve all A/AAAA records and reject loopback, RFC1918/private, link-local, multicast, reserved, unspecified, IPv4-mapped IPv6 and other non-globally-routable targets. If any address is disallowed, fail closed.
+5. Prevent DNS rebinding / TOCTOU: connection must be made to an already validated IP while preserving the approved hostname for TLS SNI and certificate validation; alternatively enforce an egress proxy/firewall that only permits explicitly approved external destinations and document its verification. **A DNS check followed by an ordinary hostname connection is not sufficient.**
+6. `follow_redirects=False`, including redirects to an otherwise permitted URL, until each redirect hop can be independently revalidated/pinned. Simplest v1: reject 3xx.
+7. Disable environment-derived HTTP proxies (`trust_env=False`) unless explicitly administered and audited; never send credentials or auth headers to arbitrary remote origins.
+8. Set connect/read/total download timeouts (e.g. 5/15/20 seconds), stream with a 20 MiB cap, cap decompressed/decoded output, validate HTTP status and real audio format. Reject responses claiming unlimited streams.
+9. Signed URLs: accept query strings for the authorized host but **redact them** from logs, traces and error responses; do not store them in exceptions. Ensure URL is not reflected back to caller.
+10. Add hardening at deployment: default no outbound access except allowlisted storage domains (network proxy/firewall) when possible; no credentials exposed in URL.
+
+**Minimum URL security tests**: `127.0.0.1`, `localhost`, `10.0.0.1`, `169.254.169.254`, `[::1]`, `[::ffff:127.0.0.1]`, private DNS answer, mixed public/private DNS answers, DNS rebinding, redirect to private IP, `http://`, `https://good.example.evil.org`, URL userinfo, oversized chunk stream, endless slow stream, invalid MIME and wrong decoded format. Mock DNS and transport; **do not** make real external requests in fast CI.
+
+---
+
+## 6. Authentication, limits and observability
+
+- Use optional `X-API-Key` for private network deployment; when enabled, compare with constant-time comparison and avoid logging the value. Set `REQUIRE_API_KEY=true` by default for externally reachable deployments.
+- Support rotation via redeploy or documented secret management; keep keys in `.env`/Docker secrets, never commit keys.
+- Respect `X-Request-ID` only after sanitization, otherwise generate a unique request ID.
+- Rate limiting and body size enforcement should be applied **also at Traefik/Nginx**, not only inside the app.
+- Structured logs: request ID, endpoint, status, duration, model version, source kind (upload/url), score reliability boolean; no raw audio, expected sentence or signed URL.
+- Recommended metrics (if added later): request totals/errors, p50/p95 latency, CPU inference wait time, model readiness, URL download failures. No Prometheus dependency required in v1.
+- Configure CORS explicitly; no `*` for public authenticated browser clients.
+- Always clean temp artifacts. Handle Ctrl+C / SIGTERM / graceful shutdown.
+
+---
+
+## 7. Runtime and Docker
+
+### Dockerfile requirements
+
+- `FROM python:3.12-slim` (prefer digest pin in CI/release).
+- Install `ffmpeg` and minimal runtime system libraries; do not install GPU/CUDA dependencies.
+- Use an exact dependency lockfile and CPU-only PyTorch wheel index when compatible with the pinned stack. Verify ABI compatibility before committing the lockfile.
+- Two model checkpoints can total about 2.4 GiB; choose **one explicit policy** and document it:
+  - **Recommended for a released offline image**: prefetch models during image build, pin model revision/checksums, then set `HF_HUB_OFFLINE=1` at runtime; verify a real-model smoke check. Release images will be large.
+  - **Alternative, opt-in smaller image**: external persistent `HF_HOME` volume, initialize/download models before readiness. Clearly disclose first-start network requirement and never silently claim offline operation.
+- Set `OPENPRONOUNCE_DEVICE=cpu`; use `HF_HOME=/opt/models/huggingface` (or persistent volume). Do not install `tts-piper` or `tts-kokoro` extras.
+- Dedicated non-root user; read-only root FS where practical, writable `/tmp`, no privileged mode, drop capabilities, set `no-new-privileges`.
+- Run one Uvicorn worker initially; start warm model initialization in lifespan and keep readiness false until successful.
+- Docker health check probes a lightweight liveness endpoint. Compose can gate readiness separately.
+
+### `compose.yaml` reference shape
+
+```yaml
+services:
+  openpronounce-api:
+    image: ghcr.io/OWNER/openpronounce-api:1.0.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"  # expose through a secured gateway if needed
+    environment:
+      OPENPRONOUNCE_DEVICE: cpu
+      HF_HUB_OFFLINE: "1"
+      MAX_CONCURRENT_INFERENCES: "1"
+      REQUIRE_API_KEY: "true"
+      URL_FETCH_ENABLED: "false"  # set true only with host allowlist + safe resolver
+    env_file:
+      - .env
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Use a realistic memory reservation/limit after measured tests.
+```
+
+`.env.example` must include `OPENPRONOUNCE_API_KEY=change-me`, `URL_FETCH_ENABLED`, `ALLOWED_AUDIO_HOSTS`, input caps, timeout values, concurrency cap and HF_HOME. Avoid storing production secrets in the compose file. If mounting a model cache, explicitly allow read-only access and do not turn on `HF_HUB_OFFLINE=1` until cache is complete.
+
+---
+
+## 8. Testing design and scripts
+
+### Test layers
+
+| Layer | What to test | Downloads model? | When |
+|---|---|---|---|
+| Unit | mapper, text validation, URL hostname/IP policy, error mapping, file cleanup | No | Every PR/push |
+| Fast API | HTTP, multipart/JSON, auth, size and timeouts with fake adapter/downloader | No | Every PR/push |
+| Security | SSRF / redirects / DNS-rebinding controls with mocked resolver and transport | No | Every PR/push |
+| Model integration | Real known-text fixtures and `acoustic=False` / `reliable` semantics | Yes, or preloaded cache | Manual / release smoke |
+| Container smoke | Boot image; `/health/live`, `/health/ready`, real speech fixture | Model preinstalled | Tag release gate |
+
+Use a fake engine in CI that returns a fixed upstream-shaped dict. Do not download gigabytes of models for every pull request. Real-model fixture tests must validate **structure, reliability behavior and absence of crashes**, not assert a precise score (scores can vary across dependency/hardware versions).
+
+### `scripts/test.sh` (required)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+uv sync --frozen --extra dev
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run pytest -q tests/unit tests/api
+```
+
+`pyproject.toml` should declare the `dev` extra with `pytest`, `pytest-asyncio`, `httpx`, `ruff`, and mocking utilities as appropriate. A local `scripts/test.sh` is the **same command** used by CI.
+
+### `scripts/test-api.sh` (required)
+
+- Accept `BASE_URL`, optional `API_KEY`, `AUDIO_FILE`, `EXPECTED_TEXT` from environment.
+- Verify `GET /health/live` and `GET /health/ready`; report not ready distinctly.
+- Upload a **provided** authorized real voice fixture via multipart and validate JSON shape (`status`, `reliable`, engine version, scores conditional on reliability).
+- If `TEST_AUDIO_URL` is set, verify `/api/v1/assess/url` through an allowlisted **external HTTPS fixture host**; never use `localhost` to bypass URL security.
+- Return nonzero on HTTP error or invalid JSON. Do not hardcode a pass/fail score threshold.
+
+### `scripts/test-model.sh` (required)
+
+- Explicitly opt-in to heavyweight model loading; do not run as part of the fast default test script.
+- With real user-authorized/redistributable English voice fixtures: one word, one short phrase, one sentence, one insufficient/quiet clip.
+- Check type/range of returned scores, upstream `reliable` mapping, empty/missing word behavior, errors and audio cleanup; document differences for children vs adults.
+- Run against the exact release image/engine version before publishing stable Docker tags.
+
+### At minimum, implement these tests
+
+1. File upload succeeds with fake engine for WAV and WebM.
+2. Upload and URL inputs produce the same normalized response from equivalent fixtures.
+3. Unsupported content, corrupted audio, empty text, oversized payload and excessive duration are rejected with specified status/error codes.
+4. Wrong/missing/extra-word fields map without inventing phonemes/timings.
+5. `reliable=false` yields `status=uncertain` and public `scores=null`.
+6. URL SSRF cases listed in §5 fail; public valid allowlisted URL succeeds via mocked pinned transport.
+7. Redirect is rejected, including to internal metadata address.
+8. Signed URL query string never appears in logs/error messages.
+9. Download timeout / inference failure cleans temp files.
+10. Invalid/missing API key is rejected if enabled; health endpoints policy is documented.
+11. Concurrency beyond configured capacity yields bounded backpressure/429, not unbounded parallel model loading.
+12. Production container starts as non-root; only expected port exposed; runtime is CPU-only, no generated TTS reference call.
+
+---
+
+## 9. GitHub Actions CI/CD
+
+### Trigger matrix
+
+| Trigger | Checks | Build | Publish |
+|---|---|---|---|
+| PR to `main` | Ruff + unit/API/security tests | Optional `docker build` syntax check | **No** |
+| Push to `main` | Ruff + unit/API/security tests | Optional | **No stable image** |
+| Push tag `vX.Y.Z` | Run CI, model/container smoke, license audit | Yes | **GHCR** after all gates pass |
+| `workflow_dispatch` (`model-smoke`) | Full real-model fixtures | Optional | No |
+
+### `.github/workflows/ci.yml` — reference
+
+```yaml
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install Python 3.12
+        run: uv python install 3.12
+      - name: Fast checks
+        run: bash scripts/test.sh
+```
+
+When implementing, pin action versions to reviewed immutable commit SHAs where feasible. Avoid executing untrusted PR code in a workflow with `packages: write` or registry credentials.
+
+### `.github/workflows/docker-publish.yml` — release specification
+
+The implementation must:
+
+1. Trigger on `push.tags: ['v*.*.*']` and optionally `workflow_dispatch` for non-production trial tags.
+2. Explicitly grant `contents: read`, `packages: write`. Add `id-token: write`/`attestations: write` only if provenance attestation is implemented.
+3. Check out **the tag**, perform `scripts/test.sh` and release/lint/version consistency checks.
+4. Build a **linux/amd64 CPU-only** image using `docker/setup-buildx-action` + `docker/build-push-action`. Do not declare arm64 support without testing dependencies and actual inference on arm64.
+5. Prefetch and package pinned model revisions in image or use a clearly declared model-volume strategy. Warm-up / actual-model smoke must run against the **same image** to be published.
+6. Fail release on model initialization/real-fixture validation failure; never push a production tag first and test later.
+7. Log in to `ghcr.io` with `docker/login-action`, `github.actor` and `secrets.GITHUB_TOKEN`.
+8. Use `docker/metadata-action` or equivalent to tag the image as `ghcr.io/<owner>/openpronounce-api:1.0.0`, `:1.0`, `:sha-<shortsha>`, and `:latest` **only for released stable tags**.
+9. Publish the image after all gates succeed. Record the pushed digest in the job summary and release notes; deployments should ideally pin the digest.
+10. Configure build cache (`type=gha`) carefully; cache no secrets or personally identifying audio data. Add OCI labels (`source`, `version`, `licenses`, `revision`).
+11. Optionally publish signed provenance attestation and an SBOM (`actions/attest-build-provenance` / BuildKit), documenting exact action pins used.
+12. Do **not** auto-deploy to a live server as part of image publication in v1.
+
+**Example release invocation:**
+
+```bash
+git tag -a v1.0.0 -m 'Release v1.0.0'
+git push origin v1.0.0
+# After successful release:
+docker pull ghcr.io/OWNER/openpronounce-api:1.0.0
+```
+
+Reference: https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images
+
+### Release-model risk
+
+GH runners have finite disk/time resources, and a prebundled CPU Torch + 2 speech models image can be large. The workflow must explicitly check available disk/time and may use a self-hosted runner for full-model smoke. If the tag job cannot reliably run its model smoke, **do not label that workflow a production release gate**. Use a documented manual approval gate after real-model validation rather than silently skipping it.
+
+---
+
+## 10. Model versioning and operational concerns
+
+- Start with `openpronounce==1.1.0`, then lock transitive versions; release test and runtime must share the same dependency lock.
+- Record model IDs, exact Hugging Face revisions and checksums where upstream allows. If upstream source does not expose a reproducible model revision, document the gap and snapshot/cache known artifacts for the image.
+- Avoid automatic model updates at container startup in production.
+- Expose model readiness separately from liveness. Cold start may be substantial; enable proper start period for health checks.
+- One worker by default to avoid multiplying resident model memory; tune `OMP_NUM_THREADS` / `TORCH_NUM_THREADS` and maximum concurrency empirically on the target CPU.
+- Size memory based on measurements: upstream suggests ~4 GiB per instance; 8 GiB host with other services needs headroom.
+- Do not claim native-like score or pronunciation correctness. Score is a model estimate and depends on length, child vs adult voices, accent and recording quality.
+- For short words, a single altered sound can dominate score; present cautious feedback and never treat score as identity or ability assessment.
+
+---
+
+## 11. Licensing and publication gate (blocking)
+
+OpenPronounce 1.1.0 and shipped models are described by upstream as **AGPL-3.0-or-later or commercial license**. For a network-accessed service, source-sharing obligations may apply; a separate FastAPI wrapper does **not** automatically avoid copyleft obligations. Before making a closed-source public product or GHCR release:
+
+- Decide whether this project and corresponding build/source are distributed under a compatible AGPL license **or** whether a commercial license has been obtained.
+- Preserve upstream copyright / license notices; provide appropriate source location and modification details as necessary.
+- Audit all bundled model files and their license metadata; do not assume all model redistribution rights are identical without verifying artifact provenance.
+- If publishing a public GHCR image that contains upstream models, ensure license and source obligations are met; if not, stop publishing rather than hiding licensing metadata.
+- Record the approved license strategy in `docs/license.md` and CI release checklist. This is engineering guidance, not a substitute for legal review.
+
+Upstream: https://openpronounce.github.io/docs/licensing.html
+
+---
+
+## 12. Implementation order / tasks for coding agent
+
+1. **Bootstrap:** Python 3.12 package, locked dependencies, FastAPI app, config, lifecycle, health/version endpoints, Ruff/Pytest setup.
+2. **Engine adapter:** isolate OpenPronounce call, enforce `acoustic=False`, `prosody=False`, `transcription=True`, add injected fake engine for tests.
+3. **Audio pipeline:** formats, size and duration checks, 16 kHz mono, temp cleanup, error mapping, CPU concurrency guard.
+4. **Upload route:** multipart validation, stable response models, mapping from actual `1.1.0` engine output, unreliable result behavior.
+5. **URL route:** implement allowlist + pinned public-IP connection (or approved egress gateway), strict limits, redirect rejection, URL redaction; reuse same service pipeline.
+6. **API security:** API-key handling, safe logging, request ID, limits and timeouts, OpenAPI docs/examples.
+7. **Fast tests:** unit, API, URL security, fake model, negative/error paths; `scripts/test.sh` must pass on Python 3.12 without downloading models.
+8. **Docker:** CPU-only build, model delivery policy, Compose, non-root user, health/startup verification, `.env.example`.
+9. **Real-model tests:** small consented fixtures + `scripts/test-model.sh`; collect and document constraints on short-word and children tests.
+10. **GitHub Actions:** CI, manual model smoke and semver-tag publish to GHCR (only when release checks and license review pass).
+11. **Documentation:** README installation/quick start, upload/URL curl examples, .NET HttpClient integration snippet, deployment, privacy, troubleshooting, version upgrade path.
+
+Keep PRs scoped to above tasks; **avoid** adding database, Celery, Redis, Prometheus, Kubernetes, microservice gateway, complex plugin systems or generic configuration frameworks in v1.
+
+---
+
+## 13. Definition of Done / acceptance criteria
+
+- [ ] Python runtime is 3.12 and dependency resolution is reproducible with a committed lockfile.
+- [ ] `POST /api/v1/assess` assesses a provided audio file against an English word, phrase or sentence.
+- [ ] `POST /api/v1/assess/url` downloads an **allowlisted HTTPS** audio resource with SSRF defenses and returns the same response schema.
+- [ ] Both paths invoke OpenPronounce with `acoustic=False`, `prosody=False`, `transcription=True` (no TTS/network synthesis).
+- [ ] Real upstream output is mapped without inventing error/phoneme/score fields; `reliable=false` is displayed as `uncertain`, not pass/fail.
+- [ ] Audio bytes/duration/formats validated; temporary files removed in all paths; errors use stable JSON shape.
+- [ ] URL endpoint rejects private/loopback/rebound DNS targets, redirects, prohibited schemes and oversized/slow streams.
+- [ ] API-key authentication configurable; logs never expose raw audio, API key or signed URL.
+- [ ] Fast unit/API/security tests work without downloading multi-GB models; `scripts/test.sh` passes locally and in CI.
+- [ ] `scripts/test-api.sh` and `scripts/test-model.sh` exist, are executable, and have documented prerequisites.
+- [ ] Docker Compose starts CPU-only service as non-root, with correctly gated readiness and model loading.
+- [ ] Tagged GitHub release runs all mandatory checks and publishes a versioned GHCR image **only after** full-model smoke and license verification.
+- [ ] README documents exact setup, configuration, upload and URL usage, tests, offline operation and known limitations.
+- [ ] Project licensing decisions and redistributable model artifacts are documented and approved before public publication.
+
+---
+
+## 14. Source references (verified 2026-11-20)
+
+1. OpenPronounce Python/read speech API: https://openpronounce.github.io/docs/read-speech.html
+2. Result schema/reliability semantics: https://openpronounce.github.io/docs/results.html
+3. CPU, Docker and upstream HTTP API: https://openpronounce.github.io/docs/http-api.html
+4. `acoustic=False` / offline configuration: https://openpronounce.github.io/docs/configuration.html
+5. Accuracy limitations: https://openpronounce.github.io/docs/limits.html
+6. License: https://openpronounce.github.io/docs/licensing.html
+7. PyPI release 1.1.0: https://pypi.org/project/openpronounce/1.1.0/
+8. GitHub GHCR publishing: https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images
+
+**End of SPEC v1.0.**

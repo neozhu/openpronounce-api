@@ -1,0 +1,62 @@
+name: Model Smoke Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to validate (branch or tag)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+jobs:
+  model-smoke:
+    name: Real OpenPronounce 1.1.0 CPU model smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Check available runner disk space
+        run: |
+          df -h
+          avail_gb=$(df --output=avail -BG / | tail -n 1 | tr -dc '0-9')
+          echo "Available disk: ${avail_gb} GiB"
+          if [ "${avail_gb}" -lt 10 ]; then
+            echo "Insufficient disk space (< 10 GiB) for real-model validation." >&2
+            exit 1
+          fi
+
+      - name: Install ffmpeg and libsndfile
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libsndfile1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Ensure Python 3.12 is installed
+        run: uv python install 3.12
+
+      - name: Prefetch OpenPronounce 1.1.0 CPU models
+        env:
+          OPENPRONOUNCE_DEVICE: cpu
+          HF_HOME: ${{ runner.temp }}/huggingface
+        run: |
+          uv sync --frozen --extra dev
+          uv run python scripts/prepare-models.py
+
+      - name: Run opt-in real-model integration tests (offline after prefetch)
+        env:
+          OPENPRONOUNCE_DEVICE: cpu
+          HF_HOME: ${{ runner.temp }}/huggingface
+          HF_HUB_OFFLINE: "1"
+        run: bash scripts/test-model.sh
