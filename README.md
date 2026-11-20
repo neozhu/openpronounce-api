@@ -116,6 +116,12 @@ curl -fsS http://127.0.0.1:8000/health/live
 curl -fsS http://127.0.0.1:8000/health/ready
 ```
 
+The image serves the microphone practice page and scoring API on the same port.
+Open [the practice page](http://127.0.0.1:8000/practice) after the readiness check succeeds.
+Set `OPENPRONOUNCE_API_KEY` in `.env` at runtime. When authentication is enabled,
+enter that same key in the practice page when prompted, or send it as `X-API-Key`
+from an API client. Use HTTPS when opening the practice page from a remote browser.
+
 ## Testing
 
 | Command | Purpose | Downloads Models? |

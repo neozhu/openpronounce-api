@@ -24,17 +24,35 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY pyproject.toml uv.lock README.md LICENSE LICENSE-MIT LICENSE-APACHE NOTICE ./
 COPY src ./src
 COPY scripts/prepare-models.py ./scripts/prepare-models.py
 
 RUN uv sync --frozen --no-dev --no-editable \
+    && python -c "from importlib.resources import files; assert files('openpronounce_api').joinpath('practice.html').is_file(), 'Missing practice page'" \
     && rm -rf /root/.cache/uv
 
-RUN mkdir -p "${HF_HOME}" \
-    && if [ "${PREFETCH_MODELS}" = "true" ]; then \
-        python scripts/prepare-models.py; \
-    fi
+RUN <<'SH'
+set -eu
+mkdir -p "${HF_HOME}"
+if [ "${PREFETCH_MODELS}" = "true" ]; then
+    python scripts/prepare-models.py
+    python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+reviewed = {
+    "facebook/wav2vec2-lv-60-espeak-cv-ft": "ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4",
+    "facebook/wav2vec2-large-960h": "bdeaacdf88f7a155f50a2704bc967aa81fbbb2ab",
+}
+manifest = json.loads((Path(os.environ["HF_HOME"]) / "model-manifest.json").read_text())
+bundled = {model["repo_id"]: model["resolved_revision"] for model in manifest["models"]}
+if bundled != reviewed:
+    raise SystemExit(f"Bundled model revisions require a license review: {bundled}")
+PY
+fi
+SH
 
 RUN groupadd --gid "${APP_GID}" appuser \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --home-dir /nonexistent --shell /usr/sbin/nologin appuser \

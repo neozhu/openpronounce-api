@@ -1,6 +1,6 @@
 services:
   openpronounce-api:
-    image: ghcr.io/OWNER/openpronounce-api:latest
+    image: ghcr.io/neozhu/openpronounce-api:latest
     build:
       context: .
       dockerfile: Dockerfile

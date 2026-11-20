@@ -9,12 +9,17 @@ Per upstream documentation (<https://openpronounce.github.io/docs/licensing.html
 - **OpenPronounce `1.1.0` code and shipped scoring models** (`scorer_en.json`, `word_mdd_en.json`, `word_missing_generic.json`) are dual-licensed under **AGPL-3.0-or-later** or a **commercial license** from the OpenPronounce authors.
 - Wrapping OpenPronounce in a separate FastAPI HTTP service does **not** automatically eliminate AGPL-3.0 network-interaction source-sharing obligations.
 - **Bundled Hugging Face checkpoints** loaded at runtime / prefetched into the Docker image:
-  - `facebook/wav2vec2-lv-60-espeak-cv-ft` (verify upstream model card & license metadata before redistributing)
-  - `facebook/wav2vec2-large-960h` (Apache-2.0 on Hugging Face; verify model card metadata on each release)
+  - [`facebook/wav2vec2-lv-60-espeak-cv-ft`](https://huggingface.co/facebook/wav2vec2-lv-60-espeak-cv-ft/tree/ae45363bf3413b374fecd9dc8bc1df0e24c3b7f4), Apache-2.0.
+  - [`facebook/wav2vec2-large-960h`](https://huggingface.co/facebook/wav2vec2-large-960h/tree/bdeaacdf88f7a155f50a2704bc967aa81fbbb2ab), Apache-2.0.
+  - The Docker build checks the reviewed snapshot revisions against `model-manifest.json` before publishing.
 - **Bundled lexicon:** CMU Pronouncing Dictionary (`cmudict.dict.gz`, BSD-2-Clause; `cmudict.LICENSE` shipped inside the `openpronounce` wheel).
 - **Excluded copyleft extras:** This service does **not** install `espeak-ng`, `tts-piper` (GPL-3 voices), or `tts-kokoro` (`acoustic=False` and English-only `cmudict` G2P).
 
-## Required Release Strategy (Choose One Before Publishing)
+## Release Strategy
+
+This repository and its GHCR image use AGPL-3.0-or-later. See [LICENSE](../LICENSE)
+and [NOTICE](../NOTICE) for the source and component licenses. [LICENSE-MIT](../LICENSE-MIT)
+preserves the notice for earlier MIT releases.
 
 1. **AGPL-3.0-or-later Open-Source Distribution**
    - Distribute this repository and any modified source under AGPL-3.0-or-later (compatible with upstream OpenPronounce 1.1.0).
