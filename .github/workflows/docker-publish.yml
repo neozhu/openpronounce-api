@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tag/ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify license approval gate before GHCR publication
         env:
@@ -67,7 +67,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout tag/ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check runner disk headroom for offline CPU image
         run: |
