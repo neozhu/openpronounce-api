@@ -11,6 +11,23 @@ CPU-only FastAPI service wrapping [`openpronounce==1.1.0`](https://pypi.org/proj
 - **Reliability Policy:** Upstream `reliable=false` returns `200 OK` with `status="uncertain"`, `scores=null`, and safe reason codes. No uncalibrated pass/fail `correct` boolean in v1.
 - **Zero Persistence:** Temporary audio files use `0600` permissions and are deleted in `finally` across all paths.
 
+## Practice Page (`/practice`)
+
+A built-in, zero-dependency microphone workbench served directly at `/practice` with real-time waveform recording, instant self-playback (scrubbable waveform, range slider, and `0.75×` slow playback), circular score breakdown, word-level feedback chips, and adaptive light/dark themes.
+
+| Light Mode | Dark Mode |
+|---|---|
+| ![OpenPronounce Practice page in light mode](docs/images/practice-light.png) | ![OpenPronounce Practice page in dark mode](docs/images/practice-dark.png) |
+
+<details>
+<summary>Mobile view (375px)</summary>
+
+<p align="center">
+  <img src="docs/images/practice-mobile.png" alt="OpenPronounce Practice page on mobile" width="320" />
+</p>
+
+</details>
+
 ## Quick Start (Local Development)
 
 Prerequisites: Python 3.12, [`uv`](https://docs.astral.sh/uv/), and `ffmpeg` (`ffprobe` + `ffmpeg`).

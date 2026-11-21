@@ -1,293 +1,1815 @@
 <!doctype html>
-<html lang="zh-CN" data-type="software">
+<html lang="en" data-type="software">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="用麦克风练习英语单词和短句，查看发音、流利度和韵律评分。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Practice English words and sentences with your microphone and get instant scores for accuracy, fluency, and prosody.">
   <meta name="page-type" content="software">
   <meta name="site-kind" content="software">
-  <title>发音练习 · OpenPronounce</title>
+  <title>Pronunciation Practice — OpenPronounce</title>
   <style>
-    :root {
-      color-scheme: light;
-      --ink: #1c2b21;
-      --muted: #59655b;
-      --line: #dce2d7;
-      --paper: #f4f6ef;
-      --panel: #fdfff9;
-      --forest: #172b22;
-      --green: #507552;
-      --lime: #d5f49a;
-      font: 16px/1.5 "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    @layer reset, tokens, base, layout, components, utilities;
+
+    @property --value {
+      syntax: '<number>';
+      inherits: true;
+      initial-value: 0;
     }
 
-    *, *::before, *::after { box-sizing: border-box; }
-    [hidden] { display: none !important; }
-    body { margin: 0; background: var(--paper); color: var(--ink); }
-    button, input { font: inherit; }
-    button { cursor: pointer; }
-    button:disabled { cursor: default; opacity: .55; }
-    :focus-visible { outline: 2px solid #427752; outline-offset: 4px; }
-    a { color: inherit; }
-    .shell { width: min(1120px, calc(100% - 80px)); margin-inline: auto; }
-    .skip { position: fixed; top: 10px; left: 10px; z-index: 1; padding: 10px; background: white; }
-    .skip:not(:focus) { clip-path: inset(50%); }
-    .masthead, .mast-actions, .brand, .panel-heading, .deck-top, .deck-bottom {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    @layer reset {
+      html, body, header, main, footer, section, div, form, dialog, dl, dt, dd, ul, li, p, h1, h2, span, a, button, input, label, canvas, progress {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      h1, h2, p, dl, dd, ul {
+        margin: 0;
+      }
+
+      ul {
+        padding: 0;
+        list-style: none;
+      }
+
+      button, input {
+        font: inherit;
+        color: inherit;
+      }
     }
-    .masthead { min-height: 78px; gap: 12px; border-bottom: 1px solid var(--line); }
-    .brand { gap: 11px; font-size: 17px; font-weight: 700; letter-spacing: -.035em; }
-    .mark {
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
-      background: var(--forest);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
+
+    @layer tokens {
+      :root {
+        color-scheme: light dark;
+
+        --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+        /* Light theme primitives */
+        --canvas-light: #f5f5f7;
+        --canvas-glow-light: rgb(0 113 227 / 0.05);
+        --surface-light: #ffffff;
+        --surface-elevated-light: #ffffff;
+        --deck-light: #f2f2f6;
+        --well-light: #e8e8ed;
+        --ink-light: #1d1d1f;
+        --muted-light: #5e5e63;
+        --border-light: rgb(0 0 0 / 0.08);
+        --control-border-light: rgb(0 0 0 / 0.36);
+        --specular-light: rgb(255 255 255 / 0.9);
+        --accent-light: #0066cc;
+        --accent-contrast-light: #ffffff;
+        --primary-bg-light: #1d1d1f;
+        --primary-bg-hover-light: #333336;
+        --primary-ink-light: #ffffff;
+        --emerald-light: #187938;
+        --amber-light: #a64b00;
+        --danger-bg-light: #c91d1d;
+        --danger-bg-hover-light: #b01818;
+        --danger-text-light: #b81d1d;
+        --ring-track-light: #e4e4e9;
+        --slider-track-light: #86868b;
+        --backdrop-light: rgb(15 15 18 / 0.36);
+        --wave-baseline-light: rgb(0 0 0 / 0.12);
+        --wave-idle-light: #b6b6be;
+        --wave-idle-peak-light: #76767d;
+        --wave-live-light: #0066cc;
+        --shadow-card-light:
+          0 1px 2px rgb(0 0 0 / 0.04),
+          0 12px 32px rgb(0 0 0 / 0.05);
+        --shadow-pill-light:
+          0 1px 3px rgb(0 0 0 / 0.08),
+          0 1px 1px rgb(0 0 0 / 0.04);
+        --shadow-dialog-light:
+          0 24px 64px rgb(0 0 0 / 0.18),
+          0 2px 8px rgb(0 0 0 / 0.06);
+
+        /* Dark theme primitives */
+        --canvas-dark: #0b0b0d;
+        --canvas-glow-dark: rgb(41 151 255 / 0.07);
+        --surface-dark: #161618;
+        --surface-elevated-dark: #34343b;
+        --deck-dark: #1d1d21;
+        --well-dark: #26262b;
+        --ink-dark: #f5f5f7;
+        --muted-dark: #a1a1a6;
+        --border-dark: rgb(255 255 255 / 0.11);
+        --control-border-dark: rgb(255 255 255 / 0.38);
+        --specular-dark: rgb(255 255 255 / 0.08);
+        --accent-dark: #47a3ff;
+        --accent-contrast-dark: #08121f;
+        --primary-bg-dark: #f5f5f7;
+        --primary-bg-hover-dark: #e2e2e7;
+        --primary-ink-dark: #1d1d1f;
+        --emerald-dark: #30d158;
+        --amber-dark: #ff9f0a;
+        --danger-bg-dark: #d92d20;
+        --danger-bg-hover-dark: #ea3f32;
+        --danger-text-dark: #ff6961;
+        --ring-track-dark: #2c2c31;
+        --slider-track-dark: #6b6b73;
+        --backdrop-dark: rgb(0 0 0 / 0.62);
+        --wave-baseline-dark: rgb(255 255 255 / 0.13);
+        --wave-idle-dark: #46464d;
+        --wave-idle-peak-dark: #8e8e95;
+        --wave-live-dark: #47a3ff;
+        --shadow-card-dark:
+          0 1px 2px rgb(0 0 0 / 0.35),
+          0 18px 40px rgb(0 0 0 / 0.36);
+        --shadow-pill-dark:
+          0 1px 3px rgb(0 0 0 / 0.45),
+          inset 0 1px 0 rgb(255 255 255 / 0.1);
+        --shadow-dialog-dark:
+          0 28px 72px rgb(0 0 0 / 0.65),
+          0 2px 10px rgb(0 0 0 / 0.35);
+
+        /* Resolved semantic tokens (light default + media fallback + light-dark()) */
+        --canvas: var(--canvas-light);
+        --canvas-glow: var(--canvas-glow-light);
+        --surface: var(--surface-light);
+        --surface-elevated: var(--surface-elevated-light);
+        --deck: var(--deck-light);
+        --well: var(--well-light);
+        --ink: var(--ink-light);
+        --muted: var(--muted-light);
+        --border: var(--border-light);
+        --control-border: var(--control-border-light);
+        --specular: var(--specular-light);
+        --accent: var(--accent-light);
+        --accent-contrast: var(--accent-contrast-light);
+        --primary-bg: var(--primary-bg-light);
+        --primary-bg-hover: var(--primary-bg-hover-light);
+        --primary-ink: var(--primary-ink-light);
+        --emerald: var(--emerald-light);
+        --amber: var(--amber-light);
+        --danger-bg: var(--danger-bg-light);
+        --danger-bg-hover: var(--danger-bg-hover-light);
+        --danger-text: var(--danger-text-light);
+        --ring-track: var(--ring-track-light);
+        --slider-track: var(--slider-track-light);
+        --backdrop: var(--backdrop-light);
+        --wave-baseline: var(--wave-baseline-light);
+        --wave-idle: var(--wave-idle-light);
+        --wave-idle-peak: var(--wave-idle-peak-light);
+        --wave-live: var(--wave-live-light);
+        --shadow-card: var(--shadow-card-light);
+        --shadow-pill: var(--shadow-pill-light);
+        --shadow-dialog: var(--shadow-dialog-light);
+
+        @media (prefers-color-scheme: dark) {
+          --canvas: var(--canvas-dark);
+          --canvas-glow: var(--canvas-glow-dark);
+          --surface: var(--surface-dark);
+          --surface-elevated: var(--surface-elevated-dark);
+          --deck: var(--deck-dark);
+          --well: var(--well-dark);
+          --ink: var(--ink-dark);
+          --muted: var(--muted-dark);
+          --border: var(--border-dark);
+          --control-border: var(--control-border-dark);
+          --specular: var(--specular-dark);
+          --accent: var(--accent-dark);
+          --accent-contrast: var(--accent-contrast-dark);
+          --primary-bg: var(--primary-bg-dark);
+          --primary-bg-hover: var(--primary-bg-hover-dark);
+          --primary-ink: var(--primary-ink-dark);
+          --emerald: var(--emerald-dark);
+          --amber: var(--amber-dark);
+          --danger-bg: var(--danger-bg-dark);
+          --danger-bg-hover: var(--danger-bg-hover-dark);
+          --danger-text: var(--danger-text-dark);
+          --ring-track: var(--ring-track-dark);
+          --slider-track: var(--slider-track-dark);
+          --backdrop: var(--backdrop-dark);
+          --wave-baseline: var(--wave-baseline-dark);
+          --wave-idle: var(--wave-idle-dark);
+          --wave-idle-peak: var(--wave-idle-peak-dark);
+          --wave-live: var(--wave-live-dark);
+          --shadow-card: var(--shadow-card-dark);
+          --shadow-pill: var(--shadow-pill-dark);
+          --shadow-dialog: var(--shadow-dialog-dark);
+        }
+
+        @supports (color: light-dark(white, black)) {
+          --canvas: light-dark(var(--canvas-light), var(--canvas-dark));
+          --canvas-glow: light-dark(var(--canvas-glow-light), var(--canvas-glow-dark));
+          --surface: light-dark(var(--surface-light), var(--surface-dark));
+          --surface-elevated: light-dark(var(--surface-elevated-light), var(--surface-elevated-dark));
+          --deck: light-dark(var(--deck-light), var(--deck-dark));
+          --well: light-dark(var(--well-light), var(--well-dark));
+          --ink: light-dark(var(--ink-light), var(--ink-dark));
+          --muted: light-dark(var(--muted-light), var(--muted-dark));
+          --border: light-dark(var(--border-light), var(--border-dark));
+          --control-border: light-dark(var(--control-border-light), var(--control-border-dark));
+          --specular: light-dark(var(--specular-light), var(--specular-dark));
+          --accent: light-dark(var(--accent-light), var(--accent-dark));
+          --accent-contrast: light-dark(var(--accent-contrast-light), var(--accent-contrast-dark));
+          --primary-bg: light-dark(var(--primary-bg-light), var(--primary-bg-dark));
+          --primary-bg-hover: light-dark(var(--primary-bg-hover-light), var(--primary-bg-hover-dark));
+          --primary-ink: light-dark(var(--primary-ink-light), var(--primary-ink-dark));
+          --emerald: light-dark(var(--emerald-light), var(--emerald-dark));
+          --amber: light-dark(var(--amber-light), var(--amber-dark));
+          --danger-bg: light-dark(var(--danger-bg-light), var(--danger-bg-dark));
+          --danger-bg-hover: light-dark(var(--danger-bg-hover-light), var(--danger-bg-hover-dark));
+          --danger-text: light-dark(var(--danger-text-light), var(--danger-text-dark));
+          --ring-track: light-dark(var(--ring-track-light), var(--ring-track-dark));
+          --slider-track: light-dark(var(--slider-track-light), var(--slider-track-dark));
+          --backdrop: light-dark(var(--backdrop-light), var(--backdrop-dark));
+          --wave-baseline: light-dark(var(--wave-baseline-light), var(--wave-baseline-dark));
+          --wave-idle: light-dark(var(--wave-idle-light), var(--wave-idle-dark));
+          --wave-idle-peak: light-dark(var(--wave-idle-peak-light), var(--wave-idle-peak-dark));
+          --wave-live: light-dark(var(--wave-live-light), var(--wave-live-dark));
+        }
+
+        --focus-ring: var(--accent);
+        accent-color: var(--accent);
+
+        @media (prefers-contrast: more) {
+          --muted: var(--ink);
+          --border: var(--control-border);
+        }
+      }
     }
-    .mark i { width: 2px; border-radius: 2px; background: var(--lime); }
-    .mark i:nth-child(1), .mark i:nth-child(5) { height: 6px; }
-    .mark i:nth-child(2), .mark i:nth-child(4) { height: 11px; }
-    .mark i:nth-child(3) { height: 16px; }
-    .mast-actions { gap: 18px; }
-    .service { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
-    .service::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #9c7b39; }
-    .service[data-state="ready"]::before { background: #5c8d4d; }
-    .service[data-state="offline"]::before { background: #a45a50; }
-    .quiet-button {
-      min-height: 44px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 0 13px;
-      background: transparent;
-      color: var(--ink);
-      font-size: 13px;
-      font-weight: 650;
+
+    @layer base {
+      body {
+        min-block-size: 100dvh;
+        display: flex;
+        flex-direction: column;
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        line-height: 1.5;
+        color: var(--ink);
+        background-color: var(--canvas);
+        background-image: radial-gradient(ellipse 90% 45% at 50% -10%, var(--canvas-glow), transparent 72%);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        border: 0;
+        background: transparent;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.48;
+      }
+
+      :where(a, button, input, [tabindex]):focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 3px;
+      }
     }
-    .quiet-button:hover:not(:disabled) { background: #e9eee4; }
-    main { padding-top: clamp(32px, 5vw, 66px); }
-    .intro { margin-bottom: clamp(24px, 3.6vw, 36px); }
-    h1 { margin: 0; font-size: clamp(2.45rem, 4.5vw, 3.65rem); font-weight: 720; letter-spacing: -.065em; line-height: 1.1; }
-    .intro p { margin: 12px 0 0; color: var(--muted); }
-    .workbench { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 18px; }
-    .panel { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: clamp(18px, 3vw, 28px); }
-    .panel-heading { gap: 12px; min-height: 44px; }
-    .modes { display: inline-flex; gap: 3px; padding: 3px; background: #ebefe5; border-radius: 11px; }
-    .modes button {
-      min-height: 44px;
-      min-width: 72px;
-      padding: 0 13px;
-      border: 0;
-      border-radius: 8px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 14px;
-      font-weight: 650;
-      white-space: nowrap;
+
+    @layer layout {
+      .shell {
+        width: min(67.5rem, calc(100% - 3rem));
+        margin-inline: auto;
+      }
+
+      .masthead {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 20;
+        border-block-end: 1px solid var(--border);
+        background: color-mix(in oklab, var(--canvas) 78%, transparent);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+      }
+
+      .masthead-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        min-block-size: 4rem;
+        padding-block: 0.625rem;
+      }
+
+      main {
+        flex: 1 0 auto;
+        padding-block: clamp(1.75rem, 3.5vw, 3.25rem) clamp(2rem, 4vw, 3.5rem);
+      }
+
+      .intro {
+        margin-block-end: clamp(1.5rem, 2.8vw, 2.25rem);
+      }
+
+      .workbench {
+        display: grid;
+        grid-template-columns: minmax(0, 1.38fr) minmax(0, 1fr);
+        gap: 1.25rem;
+        align-items: stretch;
+      }
+
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.5rem;
+        padding-block: 1.25rem 2rem;
+        border-block-start: 1px solid var(--border);
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      @media (max-width: 54rem) {
+        .workbench {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media (max-width: 40rem) {
+        .shell {
+          width: calc(100% - 2rem);
+        }
+      }
     }
-    .modes button[aria-pressed="true"] { color: var(--ink); background: white; box-shadow: 0 1px 4px #182d2017; }
-    .modes button:hover:not(:disabled) { color: var(--ink); }
-    .next { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-    .shuffle { font-size: 1.15em; line-height: 1; }
-    .prompt { min-height: 166px; display: grid; justify-items: start; align-content: center; padding-block: 18px; }
-    .prompt p { margin: 0; color: var(--muted); font-size: 14px; }
-    .prompt h2 { margin: 5px 0 6px; font: 400 clamp(3rem, 5vw, 4.8rem)/1.06 Georgia, "Times New Roman", serif; letter-spacing: -.06em; overflow-wrap: anywhere; }
-    .prompt[data-mode="sentence"] h2 { font-size: clamp(2.25rem, 3.5vw, 3.25rem); letter-spacing: -.045em; }
-    .deck { border-radius: 13px; padding: 16px 19px 18px; background: var(--forest); color: #e9f0e7; }
-    .deck-top { gap: 14px; font-size: 13px; color: #c1cec0; }
-    .deck-state { display: inline-flex; align-items: center; gap: 7px; }
-    .deck-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #91a691; }
-    .deck[data-state="recording"] .deck-state::before { background: var(--lime); box-shadow: 0 0 0 4px #d5f49a29; }
-    .time, .score-number, .metric-value { font-variant-numeric: tabular-nums; }
-    .time { font-family: Consolas, "Courier New", monospace; font-size: 14px; }
-    .wave { display: block; width: 100%; height: 76px; margin: 3px 0 6px; }
-    .deck-bottom { gap: 12px; min-height: 46px; }
-    .record {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      min-height: 46px;
-      padding: 0 17px;
-      border: 0;
-      border-radius: 8px;
-      color: #1c2b19;
-      background: var(--lime);
-      font-size: 14px;
-      font-weight: 700;
-      white-space: nowrap;
+
+    @layer components {
+      .skip-link:focus-visible {
+        position: fixed;
+        inset-block-start: 0.75rem;
+        inset-inline-start: 0.75rem;
+        z-index: 100;
+        padding: 0.625rem 1rem;
+        border-radius: 999px;
+        background: var(--surface-elevated);
+        color: var(--ink);
+        border: 1px solid var(--control-border);
+        box-shadow: var(--shadow-card);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6875rem;
+        font-size: 1.0625rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+      }
+
+      .mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.125rem;
+        inline-size: 2rem;
+        block-size: 2rem;
+        border-radius: 0.5625rem;
+        corner-shape: squircle;
+        background: var(--primary-bg);
+        color: var(--primary-ink);
+        box-shadow: var(--shadow-pill);
+        flex: none;
+      }
+
+      .mark i {
+        display: block;
+        inline-size: 0.125rem;
+        border-radius: 999px;
+        background: currentColor;
+      }
+
+      .mark i:nth-child(1),
+      .mark i:nth-child(5) {
+        block-size: 0.375rem;
+        opacity: 0.65;
+      }
+
+      .mark i:nth-child(2),
+      .mark i:nth-child(4) {
+        block-size: 0.6875rem;
+        opacity: 0.85;
+      }
+
+      .mark i:nth-child(3) {
+        block-size: 1rem;
+      }
+
+      .mast-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .service-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4375rem;
+        min-block-size: 2.25rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .service-icon {
+        inline-size: 0.875rem;
+        block-size: 0.875rem;
+        flex: none;
+      }
+
+      .service-pill [data-icon] {
+        display: none;
+      }
+
+      .service-pill:not([data-state]) [data-icon="connecting"],
+      .service-pill[data-state="waiting"] [data-icon="waiting"] {
+        display: block;
+        color: var(--amber);
+      }
+
+      .service-pill[data-state="ready"] {
+        color: var(--ink);
+        border-color: color-mix(in oklab, var(--emerald) 35%, var(--border));
+        background: color-mix(in oklab, var(--emerald) 9%, var(--surface));
+      }
+
+      .service-pill[data-state="ready"] [data-icon="ready"] {
+        display: block;
+        color: var(--emerald);
+      }
+
+      .service-pill[data-state="offline"] {
+        color: var(--danger-text);
+        border-color: color-mix(in oklab, var(--danger-text) 35%, var(--border));
+      }
+
+      .service-pill[data-state="offline"] [data-icon="offline"] {
+        display: block;
+        color: var(--danger-text);
+      }
+
+      .quiet-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4375rem;
+        min-block-size: 2.75rem;
+        padding: 0.5rem 0.9375rem;
+        border-radius: 999px;
+        border: 1px solid var(--control-border);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 0.875rem;
+        font-weight: 550;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        transition: background-color 160ms ease-out, border-color 160ms ease-out, box-shadow 160ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 160ms ease-out, border-color 160ms ease-out, box-shadow 160ms ease-out, scale 150ms ease-out;
+        }
+      }
+
+      .quiet-button:hover:not(:disabled) {
+        background: var(--well);
+        box-shadow: var(--shadow-pill);
+      }
+
+      .quiet-button:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.98;
+        }
+      }
+
+      .quiet-button svg {
+        inline-size: 0.9375rem;
+        block-size: 0.9375rem;
+        flex: none;
+      }
+
+      .key-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.125rem 0.4375rem;
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--emerald) 16%, var(--surface));
+        color: var(--emerald);
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .intro h1 {
+        font-size: clamp(2rem, 1.35rem + 2.2vw, 3.125rem);
+        font-weight: 650;
+        line-height: 1.08;
+        letter-spacing: -0.035em;
+        text-wrap: balance;
+      }
+
+      .intro p {
+        margin-block-start: 0.5rem;
+        max-inline-size: 56ch;
+        font-size: clamp(0.9375rem, 0.875rem + 0.25vw, 1.0625rem);
+        color: var(--muted);
+        text-wrap: pretty;
+      }
+
+      .panel {
+        container-type: inline-size;
+        min-inline-size: 0;
+        display: flex;
+        flex-direction: column;
+        padding: clamp(1.25rem, 2.4cqi + 0.75rem, 1.875rem);
+        border-radius: 1.5rem;
+        corner-shape: squircle;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        box-shadow: inset 0 1px 0 var(--specular), var(--shadow-card);
+
+        @media (prefers-reduced-motion: no-preference) {
+          animation: panel-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+      }
+
+      .panel.result {
+        @media (prefers-reduced-motion: no-preference) {
+          animation-delay: 60ms;
+        }
+      }
+
+      .panel-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        min-block-size: 2.75rem;
+      }
+
+      .modes {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.1875rem;
+        padding: 0.1875rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--well);
+      }
+
+      .modes button {
+        min-block-size: 2.375rem;
+        min-inline-size: 5rem;
+        padding: 0.375rem 0.9375rem;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 560;
+        letter-spacing: -0.01em;
+        color: var(--muted);
+        white-space: nowrap;
+        transition: color 160ms ease-out, background-color 180ms ease-out, box-shadow 180ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: color 160ms ease-out, background-color 180ms ease-out, box-shadow 180ms ease-out, scale 140ms ease-out;
+        }
+      }
+
+      .modes button[aria-pressed="true"] {
+        background: var(--surface-elevated);
+        color: var(--ink);
+        box-shadow: var(--shadow-pill);
+      }
+
+      .modes button:hover:not(:disabled) {
+        color: var(--ink);
+      }
+
+      .modes button:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.97;
+        }
+      }
+
+      .prompt-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.625rem;
+      }
+
+      .prompt-index {
+        font-family: var(--font-mono);
+        font-size: 0.8125rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+
+      .prompt {
+        flex: 1 0 auto;
+        display: grid;
+        align-content: center;
+        justify-items: start;
+        gap: 0.375rem;
+        min-block-size: 11.25rem;
+        padding-block: 1.5rem;
+      }
+
+      .eyebrow {
+        font-size: 0.8125rem;
+        font-weight: 560;
+        letter-spacing: -0.005em;
+        color: var(--muted);
+      }
+
+      .prompt-text {
+        font-size: clamp(2.375rem, 1.65rem + 2.4vw, 4rem);
+        font-weight: 640;
+        line-height: 1.06;
+        letter-spacing: -0.035em;
+        overflow-wrap: anywhere;
+        text-wrap: balance;
+      }
+
+      .prompt[data-mode="sentence"] .prompt-text {
+        font-size: clamp(1.625rem, 1.25rem + 1.35vw, 2.3125rem);
+        font-weight: 580;
+        line-height: 1.18;
+        letter-spacing: -0.025em;
+      }
+
+      .meaning {
+        font-size: 0.9375rem;
+        color: var(--muted);
+        text-wrap: pretty;
+      }
+
+      .deck {
+        border-radius: 1.125rem;
+        corner-shape: squircle;
+        border: 1px solid var(--border);
+        background: var(--deck);
+        padding: 1rem 1.125rem 1.125rem;
+        box-shadow: inset 0 1px 0 var(--specular);
+      }
+
+      .deck-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      .deck-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 560;
+        color: var(--ink);
+      }
+
+      .deck-indicator {
+        inline-size: 0.5625rem;
+        block-size: 0.5625rem;
+        border-radius: 50%;
+        background: var(--muted);
+        flex: none;
+      }
+
+      .deck[data-state="recording"] .deck-indicator {
+        background: var(--danger-bg);
+        box-shadow: 0 0 0 4px color-mix(in oklab, var(--danger-bg) 22%, transparent);
+
+        @media (prefers-reduced-motion: no-preference) {
+          animation: rec-pulse 1.6s ease-in-out infinite;
+        }
+      }
+
+      .deck[data-state="scoring"] .deck-indicator,
+      .deck[data-state="preparing"] .deck-indicator,
+      .deck[data-state="requesting"] .deck-indicator,
+      .deck[data-playing="true"] .deck-indicator {
+        background: var(--accent);
+      }
+
+      .time {
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+
+      .wave {
+        display: block;
+        inline-size: 100%;
+        block-size: 4.5rem;
+        margin-block: 0.5rem 0.375rem;
+      }
+
+      .wave[data-playable="true"] {
+        cursor: pointer;
+      }
+
+      .playback-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.75rem;
+        margin-block-end: 0.5rem;
+      }
+
+      .seek-slider {
+        --slider-track-size: 0.25rem;
+        --slider-thumb-size: 0.875rem;
+        --slider-track-radius: 999px;
+        --slider-thumb-radius: 50%;
+        --slider-track-color: var(--slider-track);
+        --slider-fill-color: var(--accent);
+        --slider-thumb-color: var(--accent);
+        --slider-direction: to right;
+        --attr-min: attr(min type(<number>), 0);
+        --attr-max: attr(max type(<number>), 1000);
+        --control-value: attr(value type(<number>), 0);
+        --slider-progress: calc(
+          progress(var(--control-value), var(--attr-min), var(--attr-max)) * 100%
+        );
+
+        &:dir(rtl) {
+          --slider-direction: to left;
+        }
+
+        -webkit-appearance: none;
+        appearance: none;
+        inline-size: 100%;
+        block-size: 2.5rem;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      @supports not (opacity: progress(1, 0, 100)) {
+        .seek-slider {
+          --slider-progress: calc(
+            (var(--control-value) - var(--attr-min)) /
+            (var(--attr-max) - var(--attr-min)) * 100%
+          );
+        }
+      }
+
+      .seek-slider::-webkit-slider-runnable-track {
+        block-size: var(--slider-track-size);
+        border: 0;
+        border-radius: var(--slider-track-radius);
+        background: linear-gradient(
+          var(--slider-direction),
+          var(--slider-fill-color) var(--slider-progress),
+          var(--slider-track-color) var(--slider-progress)
+        );
+      }
+
+      .seek-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        inline-size: var(--slider-thumb-size);
+        block-size: var(--slider-thumb-size);
+        margin-block-start: calc(
+          (var(--slider-track-size) - var(--slider-thumb-size)) / 2
+        );
+        border: 0;
+        border-radius: var(--slider-thumb-radius);
+        background: var(--slider-thumb-color);
+        box-shadow: var(--shadow-pill);
+      }
+
+      .seek-slider::-moz-range-track {
+        block-size: var(--slider-track-size);
+        border: 0;
+        border-radius: var(--slider-track-radius);
+        background: var(--slider-track-color);
+      }
+
+      .seek-slider::-moz-range-progress {
+        block-size: var(--slider-track-size);
+        border-radius: var(--slider-track-radius);
+        background: var(--slider-fill-color);
+      }
+
+      .seek-slider::-moz-range-thumb {
+        inline-size: var(--slider-thumb-size);
+        block-size: var(--slider-thumb-size);
+        border: 0;
+        border-radius: var(--slider-thumb-radius);
+        background: var(--slider-thumb-color);
+        box-shadow: var(--shadow-pill);
+      }
+
+      .seek-slider:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 4px;
+      }
+
+      @media (forced-colors: active) {
+        .seek-slider {
+          forced-color-adjust: none;
+          --slider-track-color: CanvasText;
+          --slider-fill-color: Highlight;
+          --slider-thumb-color: Highlight;
+        }
+      }
+
+      .speed-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-block-size: 2rem;
+        min-inline-size: 3.125rem;
+        padding: 0.25rem 0.625rem;
+        border-radius: 999px;
+        border: 1px solid var(--control-border);
+        background: var(--surface);
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out, scale 140ms ease-out;
+        }
+      }
+
+      .speed-toggle:hover:not(:disabled) {
+        background: var(--well);
+      }
+
+      .speed-toggle:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.96;
+        }
+      }
+
+      .speed-toggle[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--accent-contrast);
+      }
+
+      .deck-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.625rem;
+        min-block-size: 2.75rem;
+        margin-block-start: 0.25rem;
+      }
+
+      .deck-primary {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.625rem;
+      }
+
+      .deck-secondary {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+
+      .replay-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4375rem;
+        min-block-size: 2.75rem;
+        padding: 0.625rem 1.0625rem;
+        border-radius: 999px;
+        border: 1px solid var(--control-border);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: 0.875rem;
+        font-weight: 580;
+        letter-spacing: -0.01em;
+        box-shadow: var(--shadow-pill);
+        transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out, box-shadow 160ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out, box-shadow 160ms ease-out, scale 150ms ease-out;
+        }
+      }
+
+      .replay-button:hover:not(:disabled) {
+        background: var(--well);
+        box-shadow: 0 3px 10px rgb(0 0 0 / 0.1);
+      }
+
+      .replay-button:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.97;
+        }
+      }
+
+      .deck[data-playing="true"] .replay-button {
+        border-color: var(--accent);
+        background: color-mix(in oklab, var(--accent) 12%, var(--surface));
+        color: var(--accent);
+      }
+
+      .replay-button svg {
+        inline-size: 0.9375rem;
+        block-size: 0.9375rem;
+        flex: none;
+      }
+
+      .replay-button .icon-pause {
+        display: none;
+      }
+
+      .deck[data-playing="true"] .replay-button .icon-play {
+        display: none;
+      }
+
+      .deck[data-playing="true"] .replay-button .icon-pause {
+        display: block;
+      }
+
+      .record {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5625rem;
+        min-block-size: 2.75rem;
+        padding: 0.625rem 1.25rem;
+        border-radius: 999px;
+        background: var(--primary-bg);
+        color: var(--primary-ink);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        box-shadow: var(--shadow-pill);
+        transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 160ms ease-out, box-shadow 160ms ease-out, scale 260ms ease-out;
+          transition: background-color 160ms ease-out, box-shadow 160ms ease-out, scale 260ms linear(0, 0.45 15%, 1.08 35%, 0.97 55%, 1.01 75%, 1);
+        }
+      }
+
+      .record:hover:not(:disabled) {
+        background: var(--primary-bg-hover);
+        box-shadow: 0 4px 14px rgb(0 0 0 / 0.16);
+      }
+
+      .record:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.97;
+        }
+      }
+
+      .deck[data-state="recording"] .record {
+        background: var(--danger-bg);
+        color: #ffffff;
+      }
+
+      .deck[data-state="recording"] .record:hover:not(:disabled) {
+        background: var(--danger-bg-hover);
+        box-shadow: 0 4px 14px color-mix(in oklab, var(--danger-bg) 35%, transparent);
+      }
+
+      .record svg {
+        inline-size: 1rem;
+        block-size: 1rem;
+        flex: none;
+      }
+
+      .record .icon-stop {
+        display: none;
+      }
+
+      .deck[data-state="recording"] .record .icon-mic {
+        display: none;
+      }
+
+      .deck[data-state="recording"] .record .icon-stop {
+        display: block;
+      }
+
+      .deck-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        min-block-size: 2.75rem;
+        padding: 0.5rem 0.875rem;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 550;
+        color: var(--ink);
+        transition: background-color 150ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 150ms ease-out, scale 140ms ease-out;
+        }
+      }
+
+      .deck-action:hover:not(:disabled) {
+        background: color-mix(in oklab, var(--ink) 8%, transparent);
+      }
+
+      .deck-action:active:not(:disabled) {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.97;
+        }
+      }
+
+      .record-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.4375rem;
+        margin-block-start: 0.875rem;
+        min-block-size: 1.5em;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+
+      .note-icon {
+        display: none;
+        inline-size: 1rem;
+        block-size: 1rem;
+        margin-block-start: 0.1875rem;
+        flex: none;
+      }
+
+      .record-note[data-error="true"] {
+        color: var(--danger-text);
+      }
+
+      .record-note[data-error="true"] .note-icon {
+        display: block;
+      }
+
+      /* Result panel */
+      .result .panel-heading {
+        padding-block-end: 0.875rem;
+        border-block-end: 1px solid var(--border);
+      }
+
+      .result h2 {
+        font-size: 1.0625rem;
+        font-weight: 620;
+        letter-spacing: -0.02em;
+      }
+
+      .result-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.6875rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--deck);
+        font-size: 0.8125rem;
+        font-weight: 560;
+        color: var(--muted);
+      }
+
+      .result-state[data-tone="good"] {
+        color: var(--emerald);
+        border-color: color-mix(in oklab, var(--emerald) 35%, var(--border));
+        background: color-mix(in oklab, var(--emerald) 10%, var(--surface));
+      }
+
+      .result-state[data-tone="warn"] {
+        color: var(--amber);
+        border-color: color-mix(in oklab, var(--amber) 35%, var(--border));
+        background: color-mix(in oklab, var(--amber) 10%, var(--surface));
+      }
+
+      .result-state[data-tone="error"] {
+        color: var(--danger-text);
+        border-color: color-mix(in oklab, var(--danger-text) 35%, var(--border));
+        background: color-mix(in oklab, var(--danger-text) 10%, var(--surface));
+      }
+
+      .score-display {
+        display: grid;
+        place-items: center;
+        padding-block: 1.5rem 1.375rem;
+      }
+
+      .progress-ring-wrapper {
+        position: relative;
+        display: grid;
+        place-items: center;
+        inline-size: clamp(9.75rem, 9rem + 2vw, 11rem);
+        aspect-ratio: 1;
+        border-radius: 50%;
+
+        @media (forced-colors: active) {
+          outline: 1px solid CanvasText;
+        }
+      }
+
+      progress.progress-ring {
+        --size: clamp(9.75rem, 9rem + 2vw, 11rem);
+        --thickness: 0.6875rem;
+        --ring-fill: var(--accent);
+        --value: 0;
+        --value: attr(value type(<number>));
+        -webkit-appearance: none;
+        appearance: none;
+        inline-size: var(--size);
+        block-size: var(--size);
+        border-radius: 50%;
+        background: conic-gradient(
+          var(--ring-fill) calc(var(--value) * 1%),
+          var(--ring-track) 0
+        );
+        background-clip: border-area;
+        border: var(--thickness) solid transparent;
+        background-origin: border-box;
+        transition: --value 0s ease-in-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition-duration: 0.65s;
+          transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @media (forced-colors: active) {
+          forced-color-adjust: none;
+          --ring-fill: CanvasText;
+          --ring-track: Canvas;
+        }
+      }
+
+      progress.progress-ring[data-tier="high"] {
+        --ring-fill: var(--emerald);
+      }
+
+      progress.progress-ring[data-tier="mid"] {
+        --ring-fill: var(--accent);
+      }
+
+      progress.progress-ring[data-tier="low"] {
+        --ring-fill: var(--amber);
+      }
+
+      progress.progress-ring::-webkit-progress-bar {
+        display: none;
+        background: none;
+      }
+
+      progress.progress-ring::-webkit-progress-value {
+        display: none;
+        background: none;
+      }
+
+      progress.progress-ring::-moz-progress-bar {
+        display: none;
+        background: none;
+      }
+
+      progress.progress-ring::slider-fill {
+        display: none;
+        background: none;
+      }
+
+      @supports not (background-clip: border-area) {
+        progress.progress-ring {
+          border: 0;
+          background-clip: border-box;
+          -webkit-mask-image: radial-gradient(
+            closest-side,
+            transparent calc(100% - var(--thickness)),
+            black calc(100% - var(--thickness) + 0.5px)
+          );
+          mask-image: radial-gradient(
+            closest-side,
+            transparent calc(100% - var(--thickness)),
+            black calc(100% - var(--thickness) + 0.5px)
+          );
+        }
+      }
+
+      .score-inner {
+        position: absolute;
+        inset: 0.75rem;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .score-label {
+        font-size: 0.8125rem;
+        font-weight: 560;
+        color: var(--muted);
+      }
+
+      .score-number {
+        font-size: clamp(2.125rem, 1.9rem + 0.7vw, 2.5rem);
+        font-weight: 650;
+        line-height: 1.06;
+        letter-spacing: -0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .score-max {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .metrics {
+        display: grid;
+        gap: 0.875rem;
+      }
+
+      .metric {
+        display: grid;
+        grid-template-columns: 4.875rem minmax(0, 1fr) 3.125rem;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.875rem;
+      }
+
+      .metric dt {
+        font-weight: 540;
+        color: var(--ink);
+      }
+
+      .metric-value {
+        text-align: end;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+
+      .track {
+        block-size: 0.4375rem;
+        border-radius: 999px;
+        background: var(--ring-track);
+        overflow: hidden;
+
+        @media (prefers-contrast: more) {
+          border: 1px solid var(--control-border);
+        }
+
+        @media (forced-colors: active) {
+          border: 1px solid CanvasText;
+        }
+      }
+
+      .track span {
+        display: block;
+        inline-size: 0;
+        block-size: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+        transition: inline-size 0s ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: inline-size 420ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @media (forced-colors: active) {
+          forced-color-adjust: none;
+          background: Highlight;
+        }
+      }
+
+      .word-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4375rem;
+        margin-block-start: 1.125rem;
+      }
+
+      .word-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3125rem;
+        padding: 0.25rem 0.625rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--deck);
+        font-size: 0.8125rem;
+        font-weight: 520;
+      }
+
+      .word-chip[data-status="clear"] {
+        border-color: color-mix(in oklab, var(--emerald) 30%, var(--border));
+        background: color-mix(in oklab, var(--emerald) 9%, var(--surface));
+      }
+
+      .word-chip[data-status="practice"] {
+        border-color: color-mix(in oklab, var(--amber) 40%, var(--border));
+        background: color-mix(in oklab, var(--amber) 11%, var(--surface));
+      }
+
+      .word-chip[data-status="missing"] {
+        border-style: dashed;
+        border-color: color-mix(in oklab, var(--danger-text) 45%, var(--border));
+        color: var(--muted);
+      }
+
+      .word-chip-icon {
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+
+      .word-chip[data-status="clear"] .word-chip-icon {
+        color: var(--emerald);
+      }
+
+      .word-chip[data-status="practice"] .word-chip-icon {
+        color: var(--amber);
+      }
+
+      .word-chip[data-status="missing"] .word-chip-icon {
+        color: var(--danger-text);
+      }
+
+      .feedback {
+        margin-block-start: 1.25rem;
+        padding-block-start: 0.9375rem;
+        border-block-start: 1px solid var(--border);
+        font-size: 0.875rem;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+        text-wrap: pretty;
+      }
+
+      footer a {
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
+
+      footer a:hover {
+        text-decoration-thickness: 2px;
+        color: var(--ink);
+      }
+
+      @container (max-width: 24rem) {
+        .panel-heading {
+          gap: 0.5rem;
+        }
+
+        .metric {
+          grid-template-columns: 4.25rem minmax(0, 1fr) 2.75rem;
+          gap: 0.5rem;
+        }
+
+        .deck-bottom {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .deck-primary {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .deck-secondary {
+          justify-content: space-between;
+        }
+      }
+
+      /* Top-layer modal dialog */
+      dialog {
+        margin: auto;
+        padding: 1.625rem;
+        inline-size: min(26.5rem, calc(100% - 2rem));
+        border: 1px solid var(--border);
+        border-radius: 1.375rem;
+        corner-shape: squircle;
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: inset 0 1px 0 var(--specular), var(--shadow-dialog);
+        opacity: 0;
+        transition-property: opacity, transform, display, overlay;
+        transition-duration: 0.26s;
+        transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        transition-behavior: allow-discrete;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transform: scale(0.96) translateY(8px);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          transition-duration: 0.1s;
+        }
+      }
+
+      dialog:modal {
+        overscroll-behavior: contain;
+      }
+
+      dialog::backdrop {
+        overflow: hidden;
+        overscroll-behavior: contain;
+        background-color: rgb(0 0 0 / 0);
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
+        transition-property: background-color, backdrop-filter, display, overlay;
+        transition-duration: 0.26s;
+        transition-timing-function: ease-out;
+        transition-behavior: allow-discrete;
+
+        @media (prefers-reduced-motion: reduce) {
+          transition-duration: 0.1s;
+        }
+      }
+
+      :is(dialog[open]):where(:not([data-closing])) {
+        opacity: 1;
+
+        @starting-style {
+          opacity: 0;
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+          transform: scale(1) translateY(0);
+
+          @starting-style {
+            transform: scale(0.96) translateY(8px);
+          }
+        }
+
+        &::backdrop {
+          background-color: var(--backdrop);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+
+          @starting-style {
+            background-color: rgb(0 0 0 / 0);
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+          }
+        }
+      }
+
+      .dialog-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-block-end: 0.5rem;
+      }
+
+      dialog h2 {
+        font-size: 1.25rem;
+        font-weight: 640;
+        letter-spacing: -0.025em;
+      }
+
+      .dialog-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-inline-size: 2.25rem;
+        min-block-size: 2.25rem;
+        border-radius: 999px;
+        color: var(--muted);
+        transition: background-color 140ms ease-out, color 140ms ease-out;
+
+        @media (prefers-reduced-motion: no-preference) {
+          transition: background-color 140ms ease-out, color 140ms ease-out, scale 140ms ease-out;
+        }
+      }
+
+      .dialog-close:hover {
+        background: var(--well);
+        color: var(--ink);
+      }
+
+      .dialog-close:active {
+        @media (prefers-reduced-motion: no-preference) {
+          scale: 0.96;
+        }
+      }
+
+      .dialog-label {
+        display: block;
+        margin-block-start: 0.75rem;
+        margin-block-end: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      .dialog-hint {
+        margin-block-end: 0.625rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+        text-wrap: pretty;
+      }
+
+      dialog input {
+        inline-size: 100%;
+        min-block-size: 2.75rem;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--control-border);
+        border-radius: 0.75rem;
+        background: var(--deck);
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 0.9375rem;
+      }
+
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 0.625rem;
+        margin-block-start: 1.25rem;
+      }
+
+      @media (forced-colors: active) {
+        .panel,
+        .deck,
+        .modes,
+        .service-pill,
+        .result-state,
+        .word-chip,
+        dialog {
+          border: 1px solid CanvasText;
+        }
+
+        .quiet-button,
+        .record,
+        .replay-button,
+        .speed-toggle,
+        .deck-action {
+          border: 1px solid ButtonText;
+        }
+      }
+
+      @keyframes panel-enter {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @keyframes rec-pulse {
+        0%, 100% {
+          box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger-bg) 25%, transparent);
+        }
+        50% {
+          box-shadow: 0 0 0 6px color-mix(in oklab, var(--danger-bg) 12%, transparent);
+        }
+      }
     }
-    .record:hover:not(:disabled) { background: #e2fbb7; transform: translateY(-1px); }
-    .record:active:not(:disabled) { transform: translateY(0); }
-    .record:focus-visible, .deck-action:focus-visible { outline-color: var(--lime); }
-    .mic { position: relative; width: 16px; height: 17px; flex: none; }
-    .mic::before { content: ""; position: absolute; top: 0; left: 5px; width: 6px; height: 10px; border: 1.5px solid currentColor; border-radius: 5px; }
-    .mic::after { content: ""; position: absolute; top: 5px; left: 2px; width: 12px; height: 9px; border: 1.5px solid currentColor; border-top: 0; border-radius: 0 0 8px 8px; }
-    .mic i { position: absolute; bottom: 0; left: 5px; width: 6px; height: 1.5px; background: currentColor; }
-    .deck[data-state="recording"] .mic::before { inset: 3px 2px auto; width: 12px; height: 12px; border: 0; border-radius: 2px; background: currentColor; }
-    .deck[data-state="recording"] .mic::after, .deck[data-state="recording"] .mic i { display: none; }
-    .deck-action { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: #e0eade; font-size: 13px; white-space: nowrap; }
-    .deck-action:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 4px; }
-    .record-note { margin: 12px 0 0; min-height: 1.5em; color: var(--muted); font-size: 14px; }
-    .record-note[data-error="true"] { color: #a43d31; }
-    .result .panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 13px; }
-    .result h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.025em; }
-    .result-state { margin: 0; color: var(--muted); font-size: 13px; }
-    .score-display { display: grid; place-items: center; margin: 22px 0 20px; }
-    .score-ring {
-      --score: 0%;
-      display: grid;
-      place-items: center;
-      width: 138px;
-      aspect-ratio: 1;
-      border-radius: 50%;
-      padding: 6px;
-      background: conic-gradient(var(--green) var(--score), #e7ece2 0);
-    }
-    .score-inner { display: grid; justify-items: center; align-content: center; width: 100%; height: 100%; border-radius: 50%; background: var(--panel); }
-    .score-label { color: var(--muted); font-size: 13px; }
-    .score-number { font: 400 2.55rem/1.04 Georgia, serif; letter-spacing: -.065em; }
-    .score-max { color: var(--muted); font-size: 12px; }
-    .metrics { margin: 0; display: grid; gap: 12px; }
-    .metric { display: grid; grid-template-columns: 4.15em minmax(0, 1fr) 3em; gap: 10px; align-items: center; font-size: 14px; }
-    .metric dd, .metric dt { margin: 0; }
-    .metric-value { text-align: right; color: var(--muted); }
-    .track { height: 5px; border-radius: 10px; background: #e7ece2; }
-    .track span { display: block; width: 0; height: 100%; border-radius: inherit; background: #6b8c60; transition: width .3s ease; }
-    .feedback { margin: 17px 0 0; padding-top: 13px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
-    footer { display: flex; justify-content: space-between; gap: 12px; padding-block: 19px 28px; font-size: 13px; color: var(--muted); }
-    footer a { text-underline-offset: 3px; }
-    dialog { width: min(410px, calc(100% - 32px)); padding: 23px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); color: var(--ink); }
-    dialog::backdrop { background: #14271db5; }
-    dialog h2 { margin: 0 0 6px; font-size: 21px; }
-    dialog p { margin: 0 0 13px; color: var(--muted); font-size: 14px; }
-    dialog label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 650; }
-    dialog input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #98aa94; border-radius: 8px; background: white; color: var(--ink); }
-    .dialog-actions { display: flex; justify-content: end; gap: 8px; margin-top: 17px; }
-    [data-enter] { animation: enter .42s ease-out both; }
-    @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-    @media (max-width: 840px) { .shell { width: calc(100% - 42px); } }
-    @media (max-width: 690px) {
-      .shell { width: calc(100% - 32px); }
-      .workbench { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-      .masthead { min-height: 66px; }
-      .mast-actions { gap: 12px; }
-      .prompt { min-height: 149px; }
-      .score-display { margin-block: 19px; }
-    }
-    @media (max-width: 380px) {
-      .brand { gap: 7px; font-size: 15px; }
-      .service { font-size: 12px; }
-      .mast-actions { gap: 7px; }
-      .quiet-button { padding-inline: 8px; }
-      .modes button { min-width: 65px; }
-      .deck { padding-inline: 12px; }
-      .deck-bottom { gap: 3px; }
-      .deck-action { padding-inline: 4px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation: none !important; transition: none !important; }
+
+    @layer utilities {
+      [hidden] {
+        display: none !important;
+      }
+
+      .visually-hidden:where(:not(:focus-within, :active)) {
+        position: absolute !important;
+        clip-path: inset(50%) !important;
+        overflow: hidden !important;
+        width: 1px !important;
+        height: 1px !important;
+        margin: -1px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        white-space: nowrap !important;
+      }
     }
   </style>
 </head>
 <body>
-  <a class="skip" href="#practice">跳到练习</a>
-  <header class="shell masthead">
-    <div class="brand">
-      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-      <span>OpenPronounce</span>
-    </div>
-    <div class="mast-actions">
-      <span class="service" id="service" role="status">连接中</span>
-      <button class="quiet-button" type="button" id="settings">API 密钥</button>
+  <a class="skip-link visually-hidden" href="#practice">Skip to practice</a>
+
+  <header class="masthead">
+    <div class="shell masthead-inner">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span>OpenPronounce</span>
+      </div>
+      <div class="mast-actions">
+        <span class="service-pill" id="service">
+          <svg class="service-icon" data-icon="connecting" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+          </svg>
+          <svg class="service-icon" data-icon="waiting" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 5v3.2l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <svg class="service-icon" data-icon="ready" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5.6 8.2 7.2 9.8 10.6 6.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="service-icon" data-icon="offline" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="m5.8 5.8 4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span id="service-label">Connecting</span>
+        </span>
+        <button class="quiet-button" type="button" id="settings">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="5.5" cy="8" r="2.75" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M8.25 8H14m-2.5 0v2m2-2v1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <span>API Key</span>
+          <span class="key-badge" id="key-badge" hidden>Active</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <main class="shell" id="practice" data-enter>
+  <main class="shell">
     <div class="intro">
-      <h1>发音练习</h1>
-      <p>对着麦克风朗读，录完就能查看发音评分。</p>
+      <h1 id="practice" tabindex="-1">Pronunciation Practice</h1>
+      <p>Read aloud into your microphone for instant accuracy, fluency, and rhythm feedback.</p>
     </div>
 
     <div class="workbench">
-      <section class="panel" aria-label="朗读与录音">
+      <section class="panel studio">
         <div class="panel-heading">
-          <div class="modes" role="group" aria-label="练习模式">
-            <button type="button" data-mode="word" aria-pressed="true">单词</button>
-            <button type="button" data-mode="sentence" aria-pressed="false">短句</button>
+          <div class="modes" role="group" aria-label="Practice mode">
+            <button type="button" data-mode="word" aria-pressed="true">Words</button>
+            <button type="button" data-mode="sentence" aria-pressed="false">Sentences</button>
           </div>
-          <button class="quiet-button next" id="next" type="button">
-            <span class="shuffle" aria-hidden="true">↻</span>换一题
-          </button>
+          <div class="prompt-controls">
+            <span class="prompt-index" id="prompt-index" aria-label="Prompt position">1 / 8</span>
+            <button class="quiet-button" id="next" type="button">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M12.75 7.5A4.75 4.75 0 1 1 11.1 4.1M12.75 2.75v2.6h-2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Next</span>
+            </button>
+          </div>
         </div>
 
         <div class="prompt" id="prompt" data-mode="word">
-          <p>请朗读</p>
-          <h2 id="reading" lang="en">apple</h2>
-          <p id="meaning">/ˈæp.əl/ · 苹果</p>
+          <p class="eyebrow">Read aloud</p>
+          <h2 class="prompt-text" id="reading" lang="en">apple</h2>
+          <p class="meaning" id="meaning">/ˈæp.əl/ · A crisp round fruit</p>
         </div>
 
-        <div class="deck" id="deck" data-state="idle">
+        <div class="deck" id="deck" data-state="idle" data-playing="false">
           <div class="deck-top">
-            <span class="deck-state" id="deck-state">准备录音</span>
+            <span class="deck-state">
+              <span class="deck-indicator" aria-hidden="true"></span>
+              <span id="deck-state">Ready to record</span>
+            </span>
             <span class="time" id="time">00:00</span>
           </div>
           <canvas class="wave" id="wave" aria-hidden="true"></canvas>
+          <div class="playback-bar" id="playback-bar" hidden>
+            <input
+              type="range"
+              id="seek"
+              class="seek-slider"
+              min="0"
+              max="1000"
+              value="0"
+              step="1"
+              aria-label="Recording playback position"
+              aria-valuetext="00:00 of 00:00"
+            >
+            <button
+              class="speed-toggle"
+              id="speed"
+              type="button"
+              aria-pressed="false"
+              aria-label="Slow playback 0.75x"
+            >0.75×</button>
+          </div>
           <div class="deck-bottom">
-            <button class="record" id="record" type="button">
-              <span class="mic" aria-hidden="true"><i></i></span><span id="record-label">开始录音</span>
-            </button>
-            <div>
-              <button class="deck-action" id="replay" type="button" hidden>回听录音</button>
-              <button class="deck-action" id="retry" type="button" hidden>重新评分</button>
+            <div class="deck-primary">
+              <button class="record" id="record" type="button">
+                <svg class="icon-mic" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="5.75" y="1.75" width="4.5" height="7.5" rx="2.25" stroke="currentColor" stroke-width="1.4"/>
+                  <path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2.25m-2.25 0h4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                <svg class="icon-stop" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="4" y="4" width="8" height="8" rx="2" fill="currentColor"/>
+                </svg>
+                <span id="record-label">Start Recording</span>
+              </button>
+              <button class="replay-button" id="replay" type="button" disabled>
+                <svg class="icon-play" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M5.25 3.65a.75.75 0 0 1 1.13-.65l6.45 3.85a.75.75 0 0 1 0 1.3l-6.45 3.85a.75.75 0 0 1-1.13-.65v-7.7Z" fill="currentColor"/>
+                </svg>
+                <svg class="icon-pause" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="4.25" y="3.25" width="2.75" height="9.5" rx="1" fill="currentColor"/>
+                  <rect x="9" y="3.25" width="2.75" height="9.5" rx="1" fill="currentColor"/>
+                </svg>
+                <span id="replay-label">Play Recording</span>
+              </button>
+            </div>
+            <div class="deck-secondary">
+              <button class="deck-action" id="retry" type="button" hidden>Score Again</button>
             </div>
           </div>
         </div>
-        <p class="record-note" id="record-note" role="status">读完后点击停止，自动提交评分。</p>
+
+        <p class="record-note" id="record-note" aria-live="polite" data-error="false">
+          <svg class="note-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M8 5v3.5M8 10.75v.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span id="record-note-text">Click Stop when you finish reading to submit automatically.</span>
+        </p>
         <audio id="playback" preload="none" hidden></audio>
       </section>
 
       <section class="panel result" aria-labelledby="result-title">
         <div class="panel-heading">
-          <h2 id="result-title">评分结果</h2>
-          <p class="result-state" id="result-state" role="status">待录音</p>
+          <h2 id="result-title">Assessment</h2>
+          <p class="result-state" id="result-state">Waiting</p>
         </div>
+
         <div class="score-display">
-          <div class="score-ring" id="score-ring">
-            <div class="score-inner">
-              <span class="score-label">总分</span>
+          <div class="progress-ring-wrapper">
+            <progress
+              id="score-ring"
+              class="progress-ring"
+              value="0"
+              max="100"
+              aria-label="Overall pronunciation score"
+              aria-valuetext="No score yet"
+            ></progress>
+            <div class="score-inner" aria-hidden="true">
+              <span class="score-label">Overall</span>
               <span class="score-number" id="score">—</span>
               <span class="score-max">/ 100</span>
             </div>
           </div>
         </div>
+
         <dl class="metrics">
-          <div class="metric"><dt>准确度</dt><dd class="track" aria-hidden="true"><span id="accuracy-bar"></span></dd><dd class="metric-value" id="accuracy">—</dd></div>
-          <div class="metric"><dt>流利度</dt><dd class="track" aria-hidden="true"><span id="fluency-bar"></span></dd><dd class="metric-value" id="fluency">—</dd></div>
-          <div class="metric"><dt>韵律</dt><dd class="track" aria-hidden="true"><span id="prosodic-bar"></span></dd><dd class="metric-value" id="prosodic">—</dd></div>
+          <div class="metric">
+            <dt>Accuracy</dt>
+            <dd class="track" aria-hidden="true"><span id="accuracy-bar"></span></dd>
+            <dd class="metric-value" id="accuracy">—</dd>
+          </div>
+          <div class="metric">
+            <dt>Fluency</dt>
+            <dd class="track" aria-hidden="true"><span id="fluency-bar"></span></dd>
+            <dd class="metric-value" id="fluency">—</dd>
+          </div>
+          <div class="metric">
+            <dt>Prosody</dt>
+            <dd class="track" aria-hidden="true"><span id="prosodic-bar"></span></dd>
+            <dd class="metric-value" id="prosodic">—</dd>
+          </div>
         </dl>
-        <p class="feedback" id="feedback" aria-live="polite">录音提交后，评分会显示在这里。</p>
+
+        <ul class="word-chips" id="word-chips" aria-label="Word feedback" hidden></ul>
+        <p class="feedback" id="feedback" aria-live="polite">Record the prompt to see your pronunciation breakdown.</p>
       </section>
     </div>
   </main>
+
   <footer class="shell">
-    <span>录音仅用于本次评分。</span>
-    <a href="https://github.com/neozhu/openpronounce-api">源代码</a>
+    <span>Recordings are processed only for this session and never stored.</span>
+    <a href="https://github.com/neozhu/openpronounce-api" target="_blank" rel="noopener noreferrer">Source Code</a>
   </footer>
 
-  <dialog id="key-dialog" aria-labelledby="key-title">
+  <dialog id="key-dialog" closedby="any" aria-labelledby="key-title">
     <form id="key-form">
-      <h2 id="key-title">API 密钥</h2>
-      <p id="key-hint">如服务启用了鉴权，请输入服务配置的密钥。</p>
-      <label for="key">密钥</label>
-      <input id="key" type="password" autocomplete="off" spellcheck="false" autofocus>
+      <div class="dialog-header">
+        <h2 id="key-title">API Key</h2>
+        <button class="dialog-close" type="button" id="close-settings-icon" aria-label="Close dialog">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m4.5 4.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <label class="dialog-label" for="key">Key</label>
+      <p class="dialog-hint" id="key-hint">If this server requires authentication, enter your configured API key.</p>
+      <input id="key" type="password" aria-describedby="key-hint" autocomplete="off" spellcheck="false" autofocus>
       <div class="dialog-actions">
-        <button class="quiet-button" type="button" id="close-settings">取消</button>
-        <button class="record" type="submit" id="save-key">使用密钥</button>
+        <button class="quiet-button" type="button" id="close-settings">Cancel</button>
+        <button class="record" type="submit" id="save-key">Save Key</button>
       </div>
     </form>
   </dialog>
@@ -295,61 +1817,87 @@
   <script>
     const exercises = {
       word: [
-        ["apple", "/ˈæp.əl/ · 苹果"],
-        ["window", "/ˈwɪn.doʊ/ · 窗户"],
-        ["travel", "/ˈtræv.əl/ · 旅行"],
-        ["water", "/ˈwɑː.tɚ/ · 水"],
-        ["garden", "/ˈɡɑːr.dən/ · 花园"],
-        ["morning", "/ˈmɔːr.nɪŋ/ · 早晨"]
+        ["apple", "/ˈæp.əl/ · A crisp round fruit"],
+        ["window", "/ˈwɪn.doʊ/ · An opening in a wall for light and air"],
+        ["travel", "/ˈtræv.əl/ · To journey from place to place"],
+        ["water", "/ˈwɑː.tɚ/ · Clear liquid essential for life"],
+        ["garden", "/ˈɡɑːr.dən/ · A cultivated space for plants and flowers"],
+        ["morning", "/ˈmɔːr.nɪŋ/ · The early part of the day before noon"],
+        ["clarity", "/ˈklær.ə.ti/ · Clearness in sound, thought, or expression"],
+        ["horizon", "/həˈraɪ.zən/ · The line where earth and sky appear to meet"]
       ],
       sentence: [
-        ["I like eating apples.", "我喜欢吃苹果。"],
-        ["The sky is clear today.", "今天的天空很晴朗。"],
-        ["Please close the window.", "请把窗户关上。"],
-        ["We walk to school together.", "我们一起走路去学校。"],
-        ["There is a book on the table.", "桌上有一本书。"],
-        ["Can I have a glass of water?", "我能喝一杯水吗？"]
+        ["I like eating apples.", "Natural everyday cadence · steady link between words"],
+        ["The sky is clear today.", "Light stress on clear and today"],
+        ["Please close the window.", "Polite request · gentle falling intonation"],
+        ["We walk to school together.", "Smooth rhythm · keep vowels distinct"],
+        ["There is a book on the table.", "Clear stress on book and table"],
+        ["Can I have a glass of water?", "Polite question · slight rising intonation"]
       ]
     };
+
     const reasonMessages = {
-      audio_too_short: "录音太短，请完整读一遍。",
-      audio_silent: "没有检测到声音，请靠近麦克风再读一次。",
-      audio_too_quiet: "声音太轻，请靠近麦克风。",
-      audio_clipped: "声音过大，请稍微远离麦克风。",
-      audio_noisy: "背景噪声较大，请换个安静的环境。",
-      missing_words: "可能有漏读，请完整读一遍。",
-      text_mismatch: "识别到的内容与题目不同，请看着题目再读一次。",
-      extra_speech: "录音里有额外的语音，请只朗读题目。"
+      audio_too_short: "Recording was too short. Read the full prompt before stopping.",
+      audio_silent: "No speech detected. Move closer to your microphone and try again.",
+      audio_too_quiet: "Audio level was too quiet. Speak slightly louder or closer to the mic.",
+      audio_clipped: "Audio clipped. Step slightly back from your microphone.",
+      audio_noisy: "Background noise was too high. Try again in a quieter space.",
+      missing_words: "Some words were missed. Read the complete prompt aloud.",
+      text_mismatch: "Recognized speech did not match the prompt. Read the displayed text carefully.",
+      extra_speech: "Extra speech was detected. Read only the displayed prompt.",
+      unreliable_assessment: "Assessment confidence was too low. Please record the prompt once more."
     };
+
     const errorMessages = {
-      AUDIO_TOO_LARGE: "录音文件过大，请缩短录音后重试。",
-      AUDIO_UNSUPPORTED_FORMAT: "服务无法读取这种录音格式，请换一个浏览器重试。",
-      AUDIO_UNPROCESSABLE: "录音无法处理，请完整读一遍后重试。",
-      SERVER_BUSY: "服务正在处理另一段录音，请稍等后重试。",
-      MODEL_UNAVAILABLE: "评分模型暂未就绪，可以稍后重新评分。",
-      ASSESSMENT_TIMEOUT: "评分超时，可以重新提交这段录音。"
+      AUDIO_TOO_LARGE: "Recording exceeds the upload size limit. Keep your take shorter.",
+      AUDIO_UNSUPPORTED_FORMAT: "This browser audio format is unsupported. Try another browser.",
+      AUDIO_UNPROCESSABLE: "Could not process the audio. Record the full prompt and try again.",
+      SERVER_BUSY: "The scoring server is busy with another request. Please wait a moment and retry.",
+      MODEL_UNAVAILABLE: "Scoring engine is still warming up. Retry in a few moments.",
+      ASSESSMENT_TIMEOUT: "Assessment timed out. You can re-submit this recording."
     };
+
     const byId = (id) => document.getElementById(id);
     const modeButtons = [...document.querySelectorAll(".modes button")];
     const prompt = byId("prompt");
+    const promptIndex = byId("prompt-index");
     const reading = byId("reading");
     const meaning = byId("meaning");
     const deck = byId("deck");
     const recordButton = byId("record");
     const note = byId("record-note");
+    const noteText = byId("record-note-text");
     const resultState = byId("result-state");
+    const scoreRing = byId("score-ring");
+    const wordChips = byId("word-chips");
     const feedback = byId("feedback");
     const playback = byId("playback");
+    const playbackBar = byId("playback-bar");
+    const seekSlider = byId("seek");
+    const speedToggle = byId("speed");
     const replay = byId("replay");
+    const replayLabel = byId("replay-label");
+    const timeDisplay = byId("time");
     const retry = byId("retry");
     const keyDialog = byId("key-dialog");
     const keyInput = byId("key");
+    const keyBadge = byId("key-badge");
     const canvas = byId("wave");
     const drawing = canvas.getContext("2d");
+
+    const colorSchemeQuery = matchMedia("(prefers-color-scheme: dark)");
+    const forcedColorsQuery = matchMedia("(forced-colors: active)");
     const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
     const modes = { word: 0, sentence: 0 };
-    const initialNote = "读完后点击停止，自动提交评分。";
-    const idleWave = [1, 2, 3, 5, 8, 12, 19, 28, 24, 13, 7, 9, 17, 29, 40, 50, 33, 17, 12, 20, 37, 56, 65, 42, 21, 11, 20, 31, 39, 28, 15, 7, 10, 17, 26, 23, 14, 7, 5, 3, 2, 1];
+    const initialNote = "Click Stop when you finish reading to submit automatically.";
+    const idleWave = [
+      3, 4, 6, 8, 12, 17, 24, 34, 30, 18, 11, 14, 23, 36,
+      46, 56, 40, 22, 16, 26, 44, 62, 70, 48, 26, 15, 25, 38,
+      45, 34, 20, 11, 14, 22, 32, 28, 18, 11, 8, 6, 4, 3
+    ];
+    const smoothedLevels = new Float32Array(idleWave.length);
+
     let mode = "word";
     let state = "idle";
     let microphone;
@@ -358,16 +1906,231 @@
     let analyser;
     let samples;
     let recordingFrame;
+    let playbackFrame;
     let timer;
     let startedAt;
     let take;
     let playbackUrl;
+    let takeDuration = 0;
+    let recordedWave = null;
+    let capturedLevels = [];
+    let slowPlayback = false;
     let apiKey = "";
     let needsKey = false;
 
+    /* Fallback for progress-ring attr(value type(<number>)) in browsers such as Safari */
+    if (!CSS.supports("width: attr(value type(<number>))")) {
+      const syncRingValue = () => {
+        scoreRing.style.setProperty("--value", scoreRing.getAttribute("value") || "0");
+      };
+      new MutationObserver(syncRingValue).observe(scoreRing, {
+        attributes: true,
+        attributeFilter: ["value"]
+      });
+      syncRingValue();
+    }
+
+    /* Top-layer exit animation detection and fallback */
+    let supportsDisplayTransition;
+    function canTransitionDisplay() {
+      if (supportsDisplayTransition !== undefined) return supportsDisplayTransition;
+      if (!window.CSS?.supports?.("transition-behavior", "allow-discrete") || !document.body) {
+        return false;
+      }
+      const probe = document.createElement("div");
+      probe.style.cssText = "transition: display 1s allow-discrete !important; display: block;";
+      document.body.appendChild(probe);
+      getComputedStyle(probe).display;
+      probe.style.display = "none";
+      supportsDisplayTransition = getComputedStyle(probe).display === "block";
+      probe.remove();
+      return supportsDisplayTransition;
+    }
+
+    function supportsTopLayerExit() {
+      return Boolean(window.CSS?.supports?.("overlay", "auto") && canTransitionDisplay());
+    }
+
+    async function closeTopLayer(element) {
+      if (!element.open) return;
+      if (!supportsTopLayerExit()) {
+        element.setAttribute("data-closing", "");
+        const animations = element.getAnimations({ subtree: true });
+        if (animations.length > 0) {
+          await Promise.race([
+            Promise.allSettled(animations.map((animation) => animation.finished)),
+            new Promise((resolve) => setTimeout(resolve, 2000))
+          ]);
+        }
+        if (!element.hasAttribute("data-closing")) return;
+        element.removeAttribute("data-closing");
+      }
+      element.close();
+    }
+
+    /* Fallback for <dialog closedby="any"> light-dismiss */
+    if (!("closedBy" in HTMLDialogElement.prototype)) {
+      keyDialog.addEventListener("click", (event) => {
+        if (event.target !== keyDialog) return;
+        const rect = keyDialog.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        closeTopLayer(keyDialog);
+      });
+    }
+
     function setNote(message, error = false) {
-      note.textContent = message;
+      noteText.textContent = message;
       note.dataset.error = String(error);
+    }
+
+    function setResultState(label, tone = "") {
+      resultState.textContent = label;
+      if (tone) {
+        resultState.dataset.tone = tone;
+      } else {
+        resultState.removeAttribute("data-tone");
+      }
+    }
+
+    function updateKeyBadge() {
+      keyBadge.hidden = !apiKey;
+    }
+
+    function formatTime(seconds) {
+      const safe = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+      const mins = Math.floor(safe / 60);
+      const secs = safe % 60;
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function getTakeDuration() {
+      return Number.isFinite(playback.duration) && playback.duration > 0 ? playback.duration : takeDuration;
+    }
+
+    function syncSliderValue() {
+      const min = seekSlider.min || "0";
+      const max = seekSlider.max || "1000";
+      seekSlider.style.setProperty("--attr-min", min);
+      seekSlider.style.setProperty("--attr-max", max);
+      seekSlider.style.setProperty("--control-value", seekSlider.value);
+      const dur = getTakeDuration();
+      const cur = dur > 0 ? Math.min(dur, (Number(seekSlider.value) / Number(max)) * dur) : 0;
+      seekSlider.setAttribute("aria-valuetext", `${formatTime(cur)} of ${formatTime(dur)}`);
+    }
+
+    function stopPlaybackLoop() {
+      cancelAnimationFrame(playbackFrame);
+      playbackFrame = undefined;
+    }
+
+    function syncPlaybackUI() {
+      const playing = Boolean(playbackUrl) && !playback.paused && !playback.ended;
+      deck.dataset.playing = String(playing);
+      replayLabel.textContent = playing ? "Pause" : "Play Recording";
+
+      if (state === "idle") {
+        byId("deck-state").textContent = playing
+          ? "Playing your recording"
+          : playbackUrl
+            ? "Recording ready"
+            : "Ready to record";
+      }
+
+      if (playbackUrl && state !== "recording") {
+        const dur = getTakeDuration();
+        const cur = playback.ended ? 0 : Math.min(dur, playback.currentTime || 0);
+        const ratio = dur > 0 ? Math.max(0, Math.min(1, cur / dur)) : 0;
+        seekSlider.value = String(Math.round(ratio * Number(seekSlider.max || 1000)));
+        syncSliderValue();
+        timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+      }
+      if (state !== "recording") drawWave();
+    }
+
+    function tickPlayback() {
+      syncPlaybackUI();
+      if (!playback.paused && !playback.ended && !reducedMotion.matches) {
+        playbackFrame = requestAnimationFrame(tickPlayback);
+      } else {
+        playbackFrame = undefined;
+      }
+    }
+
+    function resampleWave(levels, count) {
+      if (!Array.isArray(levels) || levels.length === 0) return null;
+      const bars = new Array(count);
+      const peak = Math.max(0.08, ...levels);
+      for (let index = 0; index < count; index++) {
+        const start = Math.floor((index * levels.length) / count);
+        const end = Math.max(start + 1, Math.floor(((index + 1) * levels.length) / count));
+        let sum = 0;
+        for (let i = start; i < end; i++) sum += levels[i];
+        const normalized = Math.min(1, (sum / (end - start)) / peak);
+        bars[index] = 8 + normalized * 60;
+      }
+      return bars;
+    }
+
+    async function extractWaveFromClip(clip) {
+      if (!window.AudioContext) return null;
+      const context = new AudioContext();
+      try {
+        const audio = await context.decodeAudioData(await clip.arrayBuffer());
+        const data = audio.getChannelData(0);
+        const count = idleWave.length;
+        const step = Math.max(1, Math.floor(data.length / count));
+        const levels = [];
+        for (let index = 0; index < count; index++) {
+          let sumSq = 0;
+          const start = index * step;
+          const end = Math.min(data.length, start + step);
+          for (let i = start; i < end; i++) sumSq += data[i] * data[i];
+          levels.push(Math.sqrt(sumSq / Math.max(1, end - start)));
+        }
+        return resampleWave(levels, count);
+      } catch {
+        return null;
+      } finally {
+        await context.close().catch(() => {});
+      }
+    }
+
+    function setRecordedClip(clip, durationSeconds, waveData) {
+      stopPlaybackLoop();
+      playback.pause();
+      if (playbackUrl) URL.revokeObjectURL(playbackUrl);
+      playbackUrl = URL.createObjectURL(clip);
+      takeDuration = Math.max(0.1, Number.isFinite(durationSeconds) ? durationSeconds : 0);
+      recordedWave = waveData || [...idleWave];
+      playback.src = playbackUrl;
+      playback.playbackRate = slowPlayback ? 0.75 : 1;
+      canvas.dataset.playable = "true";
+      playbackBar.hidden = false;
+      seekSlider.value = "0";
+      const playbackBlocked = state === "recording" || state === "requesting" || state === "preparing";
+      replay.disabled = playbackBlocked;
+      seekSlider.disabled = playbackBlocked;
+      speedToggle.disabled = playbackBlocked;
+      syncPlaybackUI();
+    }
+
+    function seekToRatio(ratio) {
+      if (!playbackUrl || state === "recording") return;
+      const clamped = Math.max(0, Math.min(1, ratio));
+      const dur = getTakeDuration();
+      if (dur > 0) {
+        try {
+          playback.currentTime = clamped * dur;
+        } catch {}
+      }
+      seekSlider.value = String(Math.round(clamped * Number(seekSlider.max || 1000)));
+      syncPlaybackUI();
     }
 
     function setState(next) {
@@ -375,60 +2138,151 @@
       deck.dataset.state = next;
       const busy = next !== "idle";
       const labels = {
-        idle: ["准备录音", "开始录音"],
-        requesting: ["等待麦克风权限", "等待授权"],
-        recording: ["正在录音", "停止并评分"],
-        preparing: ["正在整理录音", "处理中"],
-        scoring: ["正在评估发音", "评分中"]
+        idle: [playbackUrl ? "Recording ready" : "Ready to record", "Start Recording"],
+        requesting: ["Awaiting microphone access", "Allow Mic"],
+        recording: ["Recording", "Stop & Score"],
+        preparing: ["Preparing audio", "Processing"],
+        scoring: ["Evaluating speech", "Scoring"]
       };
       const [status, action] = labels[next];
       byId("deck-state").textContent = status;
       byId("record-label").textContent = action;
       recordButton.disabled = busy && next !== "recording";
       byId("next").disabled = busy;
-      modeButtons.forEach((button) => { button.disabled = busy; });
-      replay.disabled = busy;
+      modeButtons.forEach((button) => {
+        button.disabled = busy;
+      });
+      const playbackDisabled = !playbackUrl || next === "recording" || next === "requesting" || next === "preparing";
+      replay.disabled = playbackDisabled;
+      seekSlider.disabled = playbackDisabled;
+      speedToggle.disabled = playbackDisabled;
       retry.disabled = busy;
-      if (next !== "recording") drawWave();
+      if (next !== "recording") {
+        smoothedLevels.fill(0);
+        syncPlaybackUI();
+      }
     }
 
     function renderScores(scores) {
       const overall = scores?.overall;
-      byId("score").textContent = Number.isFinite(overall) ? overall.toFixed(1) : "—";
-      byId("score-ring").style.setProperty("--score", Number.isFinite(overall) ? `${overall}%` : "0%");
+      const hasOverall = Number.isFinite(overall);
+      const clampedOverall = hasOverall ? Math.max(0, Math.min(100, overall)) : 0;
+
+      byId("score").textContent = hasOverall ? overall.toFixed(1) : "—";
+      scoreRing.setAttribute("value", hasOverall ? clampedOverall.toFixed(1) : "0");
+      scoreRing.setAttribute("aria-valuetext", hasOverall ? `${overall.toFixed(1)} out of 100` : "No score yet");
+
+      if (!hasOverall) {
+        scoreRing.removeAttribute("data-tier");
+      } else if (overall >= 85) {
+        scoreRing.dataset.tier = "high";
+      } else if (overall >= 60) {
+        scoreRing.dataset.tier = "mid";
+      } else {
+        scoreRing.dataset.tier = "low";
+      }
+
       for (const name of ["accuracy", "fluency", "prosodic"]) {
         const value = scores?.[name];
-        byId(name).textContent = Number.isFinite(value) ? value.toFixed(1) : "—";
-        byId(`${name}-bar`).style.width = Number.isFinite(value) ? `${value}%` : "0%";
+        const valid = Number.isFinite(value);
+        byId(name).textContent = valid ? value.toFixed(1) : "—";
+        byId(`${name}-bar`).style.inlineSize = valid ? `${Math.max(0, Math.min(100, value))}%` : "0%";
       }
     }
 
+    function renderWordChips(words) {
+      wordChips.replaceChildren();
+      if (!Array.isArray(words) || words.length === 0) {
+        wordChips.hidden = true;
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      for (const word of words) {
+        const label = typeof word?.text === "string" ? word.text.trim() : "";
+        if (!label) continue;
+        const status = word.missing ? "missing" : word.mispronounced ? "practice" : "clear";
+        const item = document.createElement("li");
+        item.className = "word-chip";
+        item.dataset.status = status;
+
+        const icon = document.createElement("span");
+        icon.className = "word-chip-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = status === "clear" ? "✓" : status === "practice" ? "!" : "−";
+
+        const text = document.createElement("span");
+        text.textContent = status === "missing" ? `${label} (missed)` : label;
+
+        item.append(icon, text);
+        fragment.appendChild(item);
+      }
+      wordChips.appendChild(fragment);
+      wordChips.hidden = wordChips.childElementCount === 0;
+    }
+
     function clearTake() {
+      stopPlaybackLoop();
       playback.pause();
       playback.removeAttribute("src");
       if (playbackUrl) URL.revokeObjectURL(playbackUrl);
       playbackUrl = undefined;
       take = undefined;
+      takeDuration = 0;
+      recordedWave = null;
+      capturedLevels = [];
       needsKey = false;
       playback.load();
-      replay.hidden = true;
+      deck.dataset.playing = "false";
+      canvas.removeAttribute("data-playable");
+      playbackBar.hidden = true;
+      seekSlider.value = "0";
+      syncSliderValue();
+      replay.disabled = true;
+      seekSlider.disabled = true;
+      speedToggle.disabled = true;
+      replayLabel.textContent = "Play Recording";
       retry.hidden = true;
-      byId("time").textContent = "00:00";
+      timeDisplay.textContent = "00:00";
+      if (state === "idle") byId("deck-state").textContent = "Ready to record";
       renderScores(null);
-      resultState.textContent = "待录音";
-      feedback.textContent = "录音提交后，评分会显示在这里。";
+      renderWordChips(null);
+      setResultState("Waiting");
+      feedback.textContent = "Record the prompt to see your pronunciation breakdown.";
+      drawWave();
     }
 
     function showExercise() {
-      const [text, hint] = exercises[mode][modes[mode]];
+      const list = exercises[mode];
+      const index = modes[mode];
+      const [text, hint] = list[index];
       prompt.dataset.mode = mode;
       reading.textContent = text;
       meaning.textContent = hint;
+      promptIndex.textContent = `${index + 1} / ${list.length}`;
       modeButtons.forEach((button) => {
         button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
       });
       clearTake();
       setNote(initialNote);
+    }
+
+    function getThemeColors() {
+      const styles = getComputedStyle(document.documentElement);
+      if (forcedColorsQuery.matches) {
+        return {
+          baseline: "GrayText",
+          idle: "GrayText",
+          idlePeak: "CanvasText",
+          live: "Highlight"
+        };
+      }
+      const suffix = colorSchemeQuery.matches ? "-dark" : "-light";
+      return {
+        baseline: styles.getPropertyValue(`--wave-baseline${suffix}`).trim() || "rgba(0,0,0,0.12)",
+        idle: styles.getPropertyValue(`--wave-idle${suffix}`).trim() || "#b6b6be",
+        idlePeak: styles.getPropertyValue(`--wave-idle-peak${suffix}`).trim() || "#76767d",
+        live: styles.getPropertyValue(`--wave-live${suffix}`).trim() || "#0066cc"
+      };
     }
 
     function drawWave() {
@@ -442,23 +2296,78 @@
         canvas.width = pixelWidth;
         canvas.height = pixelHeight;
       }
+
+      const colors = getThemeColors();
       drawing.setTransform(ratio, 0, 0, ratio, 0, 0);
       drawing.clearRect(0, 0, width, height);
-      drawing.fillStyle = "#415d4b";
+      drawing.fillStyle = colors.baseline;
       drawing.fillRect(0, height / 2, width, 1);
+
       const live = state === "recording" && analyser && !reducedMotion.matches;
       if (live) analyser.getByteTimeDomainData(samples);
-      const step = width / idleWave.length;
-      for (const [index, sampleHeight] of idleWave.entries()) {
-        const offset = live ? Math.floor(index * samples.length / idleWave.length) : 0;
-        const amplitude = live ? Math.abs(samples[offset] - 128) / 128 : 0;
-        const barHeight = live ? Math.min(height - 4, 3 + amplitude * 135) : sampleHeight * .78;
-        drawing.fillStyle = live ? "#d5f49a" : index > 12 && index < 29 ? "#9bbc77" : "#66875f";
+
+      const barCount = idleWave.length;
+      const step = width / barCount;
+      const barWidth = Math.max(2, Math.min(3.25, step * 0.48));
+      const bucketSize = live ? Math.max(1, Math.floor(samples.length / barCount)) : 0;
+      const sourceWave = recordedWave || idleWave;
+      const dur = getTakeDuration();
+      const hasProgress = Boolean(playbackUrl && recordedWave && !live && dur > 0);
+      const progressRatio = hasProgress && !playback.ended
+        ? Math.max(0, Math.min(1, (playback.currentTime || 0) / dur))
+        : 0;
+      const playedIndex = progressRatio * barCount;
+      let frameEnergy = 0;
+
+      for (let index = 0; index < barCount; index++) {
+        let barHeight = sourceWave[index] * 0.72;
+        if (live) {
+          let sumSq = 0;
+          const start = index * bucketSize;
+          for (let i = 0; i < bucketSize; i++) {
+            const centered = (samples[start + i] - 128) / 128;
+            sumSq += centered * centered;
+          }
+          const rms = Math.sqrt(sumSq / bucketSize);
+          frameEnergy += rms;
+          const target = Math.min(height - 6, 4 + rms * (height * 2.35));
+          smoothedLevels[index] = smoothedLevels[index] * 0.62 + target * 0.38;
+          barHeight = smoothedLevels[index];
+        }
+
+        const isCenterPeak = index > 11 && index < 30;
+        if (live) {
+          drawing.fillStyle = colors.live;
+        } else if (hasProgress && progressRatio > 0) {
+          drawing.fillStyle = index < playedIndex ? colors.live : colors.idle;
+        } else if (recordedWave) {
+          drawing.fillStyle = colors.idlePeak;
+        } else {
+          drawing.fillStyle = isCenterPeak ? colors.idlePeak : colors.idle;
+        }
         drawing.beginPath();
-        drawing.roundRect(step * (index + .5) - 1.5, (height - barHeight) / 2, 3, barHeight, 2);
+        const x = step * (index + 0.5) - barWidth / 2;
+        const y = (height - barHeight) / 2;
+        if (typeof drawing.roundRect === "function") {
+          drawing.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+        } else {
+          drawing.rect(x, y, barWidth, barHeight);
+        }
         drawing.fill();
       }
-      if (live) recordingFrame = requestAnimationFrame(drawWave);
+
+      if (hasProgress && progressRatio > 0) {
+        const playheadX = Math.max(1, Math.min(width - 2, progressRatio * width));
+        drawing.fillStyle = colors.live;
+        drawing.fillRect(playheadX - 1, 4, 2, height - 8);
+      }
+
+      if (live) {
+        if (capturedLevels.length < 1800) {
+          capturedLevels.push(frameEnergy / barCount);
+        }
+        recordingFrame = requestAnimationFrame(drawWave);
+      }
     }
 
     function startMeter() {
@@ -537,7 +2446,7 @@
       setState("preparing");
       if (!chunks.length || elapsed < 350) {
         setState("idle");
-        setNote("录音太短，请完整读完再停止。", true);
+        setNote("Recording was too short. Read the full prompt before stopping.", true);
         return;
       }
       try {
@@ -550,23 +2459,25 @@
           text: reading.textContent,
           mode
         };
-        playbackUrl = URL.createObjectURL(clip);
-        playback.src = playbackUrl;
-        replay.hidden = false;
+        const waveData = capturedLevels.length >= 6
+          ? resampleWave(capturedLevels, idleWave.length)
+          : await extractWaveFromClip(clip);
+        setRecordedClip(clip, elapsed / 1000, waveData);
         await scoreTake();
       } catch {
         setState("idle");
-        setNote("无法处理录音，请再试一次。", true);
+        setNote("Unable to process this recording. Please try again.", true);
       }
     }
 
     async function startRecording() {
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        setNote("请在本机地址或 HTTPS 页面上使用支持录音的浏览器。", true);
+        setNote("Please open this page on localhost or HTTPS in a browser that supports audio recording.", true);
         return;
       }
+      playback.pause();
       setState("requesting");
-      setNote("请在浏览器提示中允许使用麦克风。");
+      setNote("Allow microphone access in your browser prompt.");
       try {
         microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus"].find(
@@ -574,54 +2485,66 @@
         );
         recorder = new MediaRecorder(microphone, mimeType ? { mimeType } : undefined);
         const chunks = [];
-        recorder.addEventListener("dataavailable", ({ data }) => { if (data.size) chunks.push(data); });
+        recorder.addEventListener("dataavailable", ({ data }) => {
+          if (data.size) chunks.push(data);
+        });
         recorder.addEventListener("stop", () => finishRecording(chunks, recorder.mimeType), { once: true });
         recorder.addEventListener("error", () => {
           setState("idle");
           stopCapture();
-          setNote("录音意外中断，请重新录音。", true);
+          setNote("Recording interrupted unexpectedly. Please try again.", true);
         }, { once: true });
         recorder.start();
         clearTake();
         startedAt = performance.now();
         setState("recording");
-        setNote("正在录音，读完后点击停止。");
+        setNote("Recording now — click Stop & Score when finished.");
         timer = setInterval(updateTime, 200);
         startMeter();
       } catch (error) {
         stopCapture();
         setState("idle");
-        const failure = error.name === "NotAllowedError" ? "麦克风权限未开启，请在浏览器地址栏中允许后重试。"
-          : error.name === "NotFoundError" ? "没有找到麦克风，请连接后重试。"
-          : "无法开启麦克风，请确认设备可用后重试。";
+        const failure = error.name === "NotAllowedError"
+          ? "Microphone permission was denied. Enable it in your browser settings and retry."
+          : error.name === "NotFoundError"
+            ? "No microphone was found. Connect one and try again."
+            : "Could not start the microphone. Verify your audio input device and retry.";
         setNote(failure, true);
       }
     }
 
     function openSettings(retryWithKey = false) {
       byId("key-hint").textContent = retryWithKey
-        ? "密钥缺失或无效。输入配置的密钥后，将重新提交当前录音。"
-        : "如服务启用了鉴权，请输入服务配置的密钥。";
-      byId("save-key").textContent = retryWithKey ? "保存并评分" : "使用密钥";
+        ? "An API key is missing or invalid. Enter the configured key to score your current recording."
+        : "If this server requires authentication, enter your configured API key.";
+      byId("save-key").textContent = retryWithKey ? "Save & Score" : "Save Key";
       keyInput.value = apiKey;
       keyInput.required = retryWithKey;
+      keyDialog.removeAttribute("data-closing");
       if (!keyDialog.open) keyDialog.showModal();
     }
 
     function showResult(payload) {
+      renderWordChips(payload.words);
       if (payload.status === "uncertain") {
         renderScores(null);
-        resultState.textContent = "建议重录";
+        setResultState("Try Again", "warn");
         const reasons = (payload.reasons || []).map((reason) => reasonMessages[reason]).filter(Boolean);
-        feedback.textContent = reasons.length ? [...new Set(reasons)].join(" ") : "这次录音不足以给出可靠分数，请再读一次。";
+        feedback.textContent = reasons.length
+          ? [...new Set(reasons)].join(" ")
+          : "This recording could not be scored reliably. Please read it once more.";
         return;
       }
       renderScores(payload.scores);
-      resultState.textContent = "已评分";
-      const review = (payload.words || []).filter(({ mispronounced, missing }) => mispronounced || missing)
+      setResultState("Completed", "good");
+      const review = (payload.words || [])
+        .filter(({ mispronounced, missing }) => mispronounced || missing)
         .map(({ text }) => text);
-      feedback.textContent = review.length ? `可以再练一下 ${[...new Set(review)].slice(0, 4).join("、")}。`
-        : payload.transcription ? `识别到：${payload.transcription}` : "可以回听录音，对照题目再练一遍。";
+      feedback.textContent = review.length
+        ? `Focus next on: ${[...new Set(review)].slice(0, 4).join(", ")}.`
+        : payload.transcription
+          ? `Heard: "${payload.transcription}"`
+          : "Listen back to your recording or advance to the next prompt.";
     }
 
     async function scoreTake() {
@@ -629,14 +2552,17 @@
       setState("scoring");
       retry.hidden = true;
       needsKey = false;
-      resultState.textContent = "评分中";
-      feedback.textContent = "正在分析这段录音。";
-      setNote("评分完成后可回听本次录音。");
+      renderWordChips(null);
+      setResultState("Evaluating");
+      feedback.textContent = "Analyzing pronunciation, fluency, and prosody.";
+      setNote("You can play back your recording while scoring runs.");
+
       const form = new FormData();
       form.append("audio", take.blob, take.filename);
       form.append("text", take.text);
       form.append("language", "en");
       form.append("mode", take.mode);
+
       try {
         const response = await fetch("/api/v1/assess", {
           method: "POST",
@@ -645,20 +2571,25 @@
         });
         if (response.status === 401) {
           needsKey = true;
-          throw new Error("请输入有效的 API 密钥后重试。");
+          throw new Error("Enter a valid API key to score this recording.");
         }
         const payload = await response.json();
         if (!response.ok) {
           if (response.status === 503) checkService();
-          throw new Error(errorMessages[payload.error?.code] || "评分失败，可以重新提交这段录音。");
+          throw new Error(errorMessages[payload.error?.code] || "Assessment failed. You can re-submit this recording.");
         }
         showResult(payload);
-        setNote("可以回听录音，或继续练下一题。");
+        setNote("Play back your take or continue to the next prompt.");
       } catch (error) {
-        resultState.textContent = "评分未完成";
-        feedback.textContent = "录音已保留，可以重新提交评分。";
+        setResultState("Incomplete", "error");
+        feedback.textContent = "Your recording is still ready — click Score Again to retry.";
         retry.hidden = false;
-        setNote(error instanceof TypeError || error instanceof SyntaxError ? "无法连接评分服务，请稍后重试。" : error.message, true);
+        setNote(
+          error instanceof TypeError || error instanceof SyntaxError
+            ? "Unable to reach the scoring service. Check your connection and retry."
+            : error.message,
+          true
+        );
       } finally {
         setState("idle");
         if (needsKey) openSettings(true);
@@ -669,14 +2600,15 @@
     async function checkService() {
       clearTimeout(healthTimer);
       const indicator = byId("service");
+      const label = byId("service-label");
       try {
         const response = await fetch("/health/ready", { cache: "no-store", signal: AbortSignal.timeout(5000) });
         indicator.dataset.state = response.ok ? "ready" : "waiting";
-        indicator.textContent = response.ok ? "服务就绪" : "模型未就绪";
+        label.textContent = response.ok ? "Ready" : "Warming up";
         if (response.ok) return;
       } catch {
         indicator.dataset.state = "offline";
-        indicator.textContent = "服务未连接";
+        label.textContent = "Offline";
       }
       healthTimer = setTimeout(checkService, 7000);
     }
@@ -688,41 +2620,122 @@
         showExercise();
       });
     });
+
     byId("next").addEventListener("click", () => {
       modes[mode] = (modes[mode] + 1) % exercises[mode].length;
       showExercise();
     });
+
     recordButton.addEventListener("click", () => {
       if (state === "recording") stopRecording();
-      if (state === "idle") startRecording();
+      else if (state === "idle") startRecording();
     });
-    retry.addEventListener("click", () => needsKey ? openSettings(true) : scoreTake());
+
+    retry.addEventListener("click", () => (needsKey ? openSettings(true) : scoreTake()));
+
     replay.addEventListener("click", async () => {
+      if (!playbackUrl) return;
       if (!playback.paused) {
         playback.pause();
         return;
       }
-      try { await playback.play(); }
-      catch { setNote("无法回听这段录音。", true); }
+      const dur = getTakeDuration();
+      if (playback.ended || (dur > 0 && playback.currentTime >= dur - 0.05)) {
+        try {
+          playback.currentTime = 0;
+        } catch {}
+      }
+      playback.playbackRate = slowPlayback ? 0.75 : 1;
+      try {
+        await playback.play();
+      } catch {
+        setNote("Unable to play back this recording.", true);
+      }
     });
-    for (const event of ["play", "pause", "ended"]) {
-      playback.addEventListener(event, () => { replay.textContent = playback.paused ? "回听录音" : "暂停回听"; });
+
+    seekSlider.addEventListener("input", () => {
+      seekToRatio(Number(seekSlider.value) / Number(seekSlider.max || 1000));
+    });
+
+    speedToggle.addEventListener("click", () => {
+      slowPlayback = !slowPlayback;
+      speedToggle.setAttribute("aria-pressed", String(slowPlayback));
+      playback.playbackRate = slowPlayback ? 0.75 : 1;
+    });
+
+    canvas.addEventListener("click", (event) => {
+      if (!playbackUrl || state === "recording") return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width) return;
+      seekToRatio((event.clientX - rect.left) / rect.width);
+    });
+
+    playback.addEventListener("play", () => {
+      syncPlaybackUI();
+      if (!reducedMotion.matches) {
+        stopPlaybackLoop();
+        playbackFrame = requestAnimationFrame(tickPlayback);
+      }
+    });
+
+    for (const eventName of ["pause", "ended"]) {
+      playback.addEventListener(eventName, () => {
+        stopPlaybackLoop();
+        syncPlaybackUI();
+      });
     }
+
+    for (const eventName of ["timeupdate", "loadedmetadata", "durationchange"]) {
+      playback.addEventListener(eventName, () => {
+        if (Number.isFinite(playback.duration) && playback.duration > 0) {
+          takeDuration = playback.duration;
+        }
+        syncPlaybackUI();
+      });
+    }
+
     byId("settings").addEventListener("click", () => openSettings(needsKey));
-    byId("close-settings").addEventListener("click", () => keyDialog.close());
-    keyDialog.addEventListener("close", () => { keyInput.value = ""; });
-    byId("key-form").addEventListener("submit", (event) => {
+    byId("close-settings").addEventListener("click", () => closeTopLayer(keyDialog));
+    byId("close-settings-icon").addEventListener("click", () => closeTopLayer(keyDialog));
+
+    keyDialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeTopLayer(keyDialog);
+    });
+
+    keyDialog.addEventListener("close", () => {
+      keyDialog.removeAttribute("data-closing");
+      keyInput.value = "";
+    });
+
+    byId("key-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       apiKey = keyInput.value.trim();
-      keyDialog.close();
+      updateKeyBadge();
+      await closeTopLayer(keyDialog);
       if (needsKey && apiKey && state === "idle") scoreTake();
     });
-    new ResizeObserver(() => { if (state !== "recording") drawWave(); }).observe(canvas);
+
+    new ResizeObserver(() => {
+      if (state !== "recording") drawWave();
+    }).observe(canvas);
+
+    for (const mediaQuery of [colorSchemeQuery, forcedColorsQuery, reducedMotion]) {
+      mediaQuery.addEventListener("change", () => {
+        if (state !== "recording") drawWave();
+      });
+    }
+
     addEventListener("pagehide", () => {
       state = "idle";
+      stopPlaybackLoop();
+      playback.pause();
       stopCapture();
       clearTimeout(healthTimer);
     });
+
+    syncSliderValue();
+    updateKeyBadge();
     drawWave();
     checkService();
   </script>
